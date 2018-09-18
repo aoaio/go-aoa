@@ -14,12 +14,20 @@ Attach the console
 ```
 Common console commond
 ```
-aoa.blockNumber #get block height
-aoa.getBlock(blockHashOrBlockNumber) #get block info
-aoa.accounts #get accounts in wallet
-aoa.getTransaction(transactionHash) #get transaction info
-personal.newAccount(passphrase) #generate new accounts and store them in the keystore directory, encrypted with passphrase
-personal.sendTransaction({from:'affress',to:'address',value:web3.toWei(100,'aoa'),action:0}, "password") #sent transaction
-admin.startRPC("0.0.0.0", 8545) #start rpc by console
-admin.stopRPC() #stop rpc by console
+#get block height
+aoa.blockNumber
+#get block info
+aoa.getBlock(blockHashOrBlockNumber)
+#get accounts in wallet
+aoa.accounts
+#get transaction info
+aoa.getTransaction(transactionHash)
+#generate new accounts and store them in the keystore directory, encrypted with passphrase
+personal.newAccount(passphrase)
+#sent transaction
+personal.sendTransaction({from:'affress',to:'address',value:web3.toWei(100,'aoa'),action:0}, "password")
+#start rpc by console
+admin.startRPC("0.0.0.0", 8545)
+#stop rpc by console
+admin.stopRPC()
 ```
