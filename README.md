@@ -15,7 +15,7 @@ nohup /data/aoa/aoa --datadir /data/aoa/aoa-data --port 30303 --rpc --rpcaddr 0.
 ```
 ### Common console commond
 ```
-//get block height
+#get block height
 aoa.blockNumber
 #get block info
 aoa.getBlock(blockHashOrBlockNumber)
