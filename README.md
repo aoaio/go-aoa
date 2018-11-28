@@ -7,7 +7,7 @@ for example
 tar zxvf aoa-linux-amd64-1.1.16-unstable.tar.gz
 mkdir –p /data/aoa
 cp aoa-linux-amd64-1.1.16-unstable/aoa /data/aoa/
-nohup /data/aoa/aoa --datadir /data/aoa/aoa-data --port 30303 --rpc --rpcaddr 0.0.0.0 --rpcport 8545 &>> /data/aoa/aoa.log &
+nohup /data/aoa/aoa --datadir /data/aoa/aoa-data --port 30303 --rpc --rpcaddr 0.0.0.0 --rpcport 8545 2>> /data/aoa/aoa.log &
 ```
 ### Attach the console
 ```
