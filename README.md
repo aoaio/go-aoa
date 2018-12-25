@@ -1,4 +1,7 @@
 # go-aoa
+
+The Aurorachain project has three phases, this is the first phase of the code.
+
 ### Deploy
 
 Under Linux or Mac, get the compressed file from release and extract it to get the executable file aoa.Create the storage directory /data/aoa, and copy the executable file to the directory. Then execute the startup command, in which '--port' is the customized chain synchronization port, '--rpc' would open RPC service, '--rpcaddr' is the self-defined RPC listening IP which should set to 127.0.0.1 if you do not want the remote RPC connection, --rpcport is the customized RCP listening port.
