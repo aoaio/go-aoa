@@ -71,10 +71,10 @@ func ShuffleNewRound(beginTime int64, maxElectDelegate int, currentDposList []ty
 	if len(currentDposList) < maxElectDelegate {
 		maxElectDelegate = len(currentDposList)
 	}
-	log.Info("shuffle", "beginTime", beginTime, "目前当选代理数", len(currentDposList), "delegateNumber", maxElectDelegate)
+	log.Infof("shuffle beginTime=%v, current delegate amount=%v, delegateNumber=%d", time.Unix(beginTime, 0), len(currentDposList), maxElectDelegate)
 	var newRoundList []types.ShuffleDel
 	truncDelegateList := Shuffle(beginTime+1, maxElectDelegate)
-	log.Debug("shuffle", "beginTime", time.Unix(beginTime, 0), "trunc", truncDelegateList)
+	log.Infof("shuffle beginTime=%v, trunc=%v", time.Unix(beginTime, 0), truncDelegateList)
 
 	for index := int64(0); index < int64(maxElectDelegate); index++ {
 		delegateIndex := truncDelegateList[index]
