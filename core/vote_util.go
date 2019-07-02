@@ -41,7 +41,7 @@ var big8 = big.NewInt(8)
 
 //Scan block transactions
 func CountBlockVote(block *types.Block, delegateList map[string]types.Candidate, db *state.StateDB) types.CandidateWrapper {
-	log.Info("Start CountBlockVote", "block", block.NumberU64())
+	log.Infof("Start CountBlockVote, bolockNumber=%v", block.NumberU64())
 	txs := block.Transactions()
 	candidates := make([]types.VoteCandidate, 0)
 	candidateVotes := make(map[string]int64, 0)
@@ -53,7 +53,7 @@ func CountBlockVote(block *types.Block, delegateList map[string]types.Candidate,
 		case types.ActionAddVote, types.ActionSubVote:
 			votes, err := types.BytesToVote(tx.Vote())
 			if err != nil {
-				log.Info("Vote_Util unmarshal error:", "err", err)
+				log.Infof("Vote_Util unmarshal error: %v", err)
 				continue
 			}
 			for _, vote := range votes {
@@ -80,7 +80,7 @@ func CountBlockVote(block *types.Block, delegateList map[string]types.Candidate,
 			if _, ok := delegateList[from]; ok {
 				registerCost := new(big.Int)
 				registerCost.SetString(params.TxGasAgentCreation, 10)
-				log.Info("VoteUtil deal cancel", "address balance", db.GetBalance(common.HexToAddress(from)), "compare", registerCost)
+				log.Infof("VoteUtil deal cancel, address balance=%v, compare=%v", db.GetBalance(common.HexToAddress(from)), registerCost)
 				if db.GetBalance(common.HexToAddress(from)).Cmp(registerCost) < 0 {
 					candidate := types.VoteCandidate{Address: from, Action: cancel}
 					candidates = append(candidates, candidate)
@@ -97,7 +97,6 @@ func CountBlockVote(block *types.Block, delegateList map[string]types.Candidate,
 			action = addVote
 		}
 		candidate := types.VoteCandidate{Address: address, Vote: uint64(vote), Action: action}
-		//log.Info("VoteUtil", "candidate", candidate)
 		candidates = append(candidates, candidate)
 	}
 	candidateWrapper := types.CandidateWrapper{Candidates: candidates, BlockHeight: block.Number().Int64(), BlockTime: block.Time().Int64()}
@@ -149,7 +148,6 @@ func CountTrxVote(from string, tx *types.Transaction, statedb *state.StateDB, db
 	if db.Exist(common.HexToAddress(from)) {
 		registerCost := new(big.Int)
 		registerCost.SetString(params.TxGasAgentCreation, 10)
-		//log.Info("VoteUtil deal cancel", "address balance", statedb.GetBalance(common.HexToAddress(from)), "compare", registerCost)
 		if statedb.GetBalance(common.HexToAddress(from)).Cmp(registerCost) < 0 {
 			candidate := types.VoteCandidate{Address: from, Action: cancel}
 			candidates = append(candidates, candidate)

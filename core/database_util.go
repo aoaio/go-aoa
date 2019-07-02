@@ -348,7 +348,7 @@ func GetBloomBits(db DatabaseReader, bit uint, section uint64, head common.Hash)
 func WriteCanonicalHash(db aoadb.Putter, hash common.Hash, number uint64) error {
 	key := append(append(headerPrefix, encodeBlockNumber(number)...), numSuffix...)
 	if err := db.Put(key, hash.Bytes()); err != nil {
-		log.Crit("Failed to store number to hash mapping", "err", err)
+		log.Error("Failed to store number to hash mapping", "err", err)
 	}
 	return nil
 }
@@ -356,7 +356,7 @@ func WriteCanonicalHash(db aoadb.Putter, hash common.Hash, number uint64) error 
 // WriteHeadHeaderHash stores the head header's hash.
 func WriteHeadHeaderHash(db aoadb.Putter, hash common.Hash) error {
 	if err := db.Put(headHeaderKey, hash.Bytes()); err != nil {
-		log.Crit("Failed to store last header's hash", "err", err)
+		log.Error("Failed to store last header's hash", "err", err)
 	}
 	return nil
 }
@@ -364,7 +364,7 @@ func WriteHeadHeaderHash(db aoadb.Putter, hash common.Hash) error {
 // WriteHeadBlockHash stores the head block's hash.
 func WriteHeadBlockHash(db aoadb.Putter, hash common.Hash) error {
 	if err := db.Put(headBlockKey, hash.Bytes()); err != nil {
-		log.Crit("Failed to store last block's hash", "err", err)
+		log.Error("Failed to store last block's hash", "err", err)
 	}
 	return nil
 }
@@ -372,7 +372,7 @@ func WriteHeadBlockHash(db aoadb.Putter, hash common.Hash) error {
 // WriteHeadFastBlockHash stores the fast head block's hash.
 func WriteHeadFastBlockHash(db aoadb.Putter, hash common.Hash) error {
 	if err := db.Put(headFastKey, hash.Bytes()); err != nil {
-		log.Crit("Failed to store last fast block's hash", "err", err)
+		log.Error("Failed to store last fast block's hash", "err", err)
 	}
 	return nil
 }
@@ -388,11 +388,11 @@ func WriteHeader(db aoadb.Putter, header *types.Header) error {
 	encNum := encodeBlockNumber(num)
 	key := append(blockHashPrefix, hash...)
 	if err := db.Put(key, encNum); err != nil {
-		log.Crit("Failed to store hash to number mapping", "err", err)
+		log.Error("Failed to store hash to number mapping", "err", err)
 	}
 	key = append(append(headerPrefix, encNum...), hash...)
 	if err := db.Put(key, data); err != nil {
-		log.Crit("Failed to store header", "err", err)
+		log.Error("Failed to store header", "err", err)
 	}
 	return nil
 }
@@ -410,7 +410,7 @@ func WriteBody(db aoadb.Putter, hash common.Hash, number uint64, body *types.Bod
 func WriteBodyRLP(db aoadb.Putter, hash common.Hash, number uint64, rlp rlp.RawValue) error {
 	key := append(append(bodyPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
 	if err := db.Put(key, rlp); err != nil {
-		log.Crit("Failed to store block body", "err", err)
+		log.Error("Failed to store block body", "err", err)
 	}
 	return nil
 }
@@ -423,7 +423,7 @@ func WriteTd(db aoadb.Putter, hash common.Hash, number uint64, td *big.Int) erro
 	}
 	key := append(append(append(headerPrefix, encodeBlockNumber(number)...), hash.Bytes()...), tdSuffix...)
 	if err := db.Put(key, data); err != nil {
-		log.Crit("Failed to store block total difficulty", "err", err)
+		log.Error("Failed to store block total difficulty", "err", err)
 	}
 	return nil
 }
@@ -457,7 +457,7 @@ func WriteBlockReceipts(db aoadb.Putter, hash common.Hash, number uint64, receip
 	// Store the flattened receipt slice
 	key := append(append(blockReceiptsPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
 	if err := db.Put(key, bytes); err != nil {
-		log.Crit("Failed to store block receipts", "err", err)
+		log.Error("Failed to store block receipts", "err", err)
 	}
 	return nil
 }
@@ -492,7 +492,7 @@ func WriteBloomBits(db aoadb.Putter, bit uint, section uint64, head common.Hash,
 	binary.BigEndian.PutUint64(key[3:], section)
 
 	if err := db.Put(key, bits); err != nil {
-		log.Crit("Failed to store bloom bits", "err", err)
+		log.Error("Failed to store bloom bits", "err", err)
 	}
 }
 
@@ -500,7 +500,7 @@ func WriteBloomBits(db aoadb.Putter, bit uint, section uint64, head common.Hash,
 func WriteDelegateBodyRLP(db aoadb.Putter, rlp rlp.RawValue) error {
 	key := []byte(datagateDataPrefix)
 	if err := db.Put(key, rlp); err != nil {
-		log.Crit("Failed to store delegate data", "err", err)
+		log.Error("Failed to store delegate data", "err", err)
 	}
 	return nil
 }
@@ -508,7 +508,7 @@ func WriteDelegateBodyRLP(db aoadb.Putter, rlp rlp.RawValue) error {
 func WriteDelegateShuffleBlockHeightRLP(db aoadb.Putter, rlp rlp.RawValue) error {
 	key := []byte(delegateStorePrefix)
 	if err := db.Put(key, rlp); err != nil {
-		log.Crit("Failed to store delegate block number", "err", err)
+		log.Error("Failed to store delegate block number", "err", err)
 	}
 	return nil
 }

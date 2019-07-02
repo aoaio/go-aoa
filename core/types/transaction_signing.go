@@ -117,14 +117,14 @@ func (s AuroraSigner) Equal(s2 Signer) bool {
 }
 
 func (s AuroraSigner) Sender(tx *Transaction) (common.Address, error) {
-	log.Debug("AuroraSigner|Sender", "tx.ChainId", tx.ChainId(), "s.chainId", s.chainId)
+	log.Debugf("AuroraSigner|Sender, tx.ChainId=%v, s.chainId=%v", tx.ChainId(), s.chainId)
 	if tx.ChainId().Cmp(s.chainId) != 0 {
 		return common.Address{}, ErrInvalidChainId
 	}
 	// V = 27 + chainId * 2 + 8
 	V := new(big.Int).Sub(tx.data.V, s.chainIdMul)
 	V.Sub(V, big8)
-	log.Debug("AuroraSigner|Sender", "V", V.Int64())
+	log.Debugf("AuroraSigner|Sender, V=%v", V.Int64())
 	return recoverPlain(s.Hash(tx), tx.data.R, tx.data.S, V, true)
 }
 
@@ -156,7 +156,7 @@ func (s AuroraSigner) SignatureValues(tx *Transaction, sig []byte) (R, S, V *big
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	log.Debug("AuroraSigner|SignatureValues", "chainId", s.chainId.Int64(), "V", V.Int64())
+	log.Infof("AuroraSigner|SignatureValues, chainId=%v, V=%v", s.chainId.Int64(), V.Int64())
 	if s.chainId.Sign() != 0 {
 		V = big.NewInt(int64(sig[64] + 27 + 8))
 		V.Add(V, s.chainIdMul)
@@ -178,7 +178,7 @@ func signatureValues(tx *Transaction, sig []byte) (r, s, v *big.Int, err error) 
 
 func recoverPlain(sighash common.Hash, R, S, Vb *big.Int, homestead bool) (common.Address, error) {
 	if Vb.BitLen() > 8 {
-		log.Error("recoverPlain1| err", "vb", Vb.BitLen())
+		log.Errorf("recoverPlain1| err, vb=%v", Vb.BitLen())
 		return common.Address{}, ErrInvalidSig
 	}
 	V := byte(Vb.Uint64() - 27)

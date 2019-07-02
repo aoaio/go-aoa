@@ -103,7 +103,7 @@ func ImportChain(chain *core.BlockChain, fn string) error {
 		}
 	}
 
-	log.Info("Importing blockchain", "file", fn)
+	log.Infof("Importing blockchain, file=%v", fn)
 	fh, err := os.Open(fn)
 	if err != nil {
 		return err
@@ -151,7 +151,7 @@ func ImportChain(chain *core.BlockChain, fn string) error {
 			return fmt.Errorf("interrupted")
 		}
 		if hasAllBlocks(chain, blocks[:i]) {
-			log.Info("Skipping batch as all blocks present", "batch", batch, "first", blocks[0].Hash(), "last", blocks[i-1].Hash())
+			log.Infof("Skipping batch as all blocks present, batch=%v, first=%v, last=%v", batch, blocks[0].Hash(), blocks[i-1].Hash())
 			continue
 		}
 
@@ -172,7 +172,7 @@ func hasAllBlocks(chain *core.BlockChain, bs []*types.Block) bool {
 }
 
 func ExportChain(blockchain *core.BlockChain, fn string) error {
-	log.Info("Exporting blockchain", "file", fn)
+	log.Infof("Exporting blockchain, file=%v", fn)
 	fh, err := os.OpenFile(fn, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		return err
@@ -188,13 +188,13 @@ func ExportChain(blockchain *core.BlockChain, fn string) error {
 	if err := blockchain.Export(writer); err != nil {
 		return err
 	}
-	log.Info("Exported blockchain", "file", fn)
+	log.Infof("Exported blockchain, file=%v", fn)
 
 	return nil
 }
 
 func ExportAppendChain(blockchain *core.BlockChain, fn string, first uint64, last uint64) error {
-	log.Info("Exporting blockchain", "file", fn)
+	log.Infof("Exporting blockchain, file=%v", fn)
 	fh, err := os.OpenFile(fn, os.O_CREATE|os.O_APPEND|os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		return err
@@ -210,6 +210,6 @@ func ExportAppendChain(blockchain *core.BlockChain, fn string, first uint64, las
 	if err := blockchain.ExportN(writer, first, last); err != nil {
 		return err
 	}
-	log.Info("Exported blockchain to", "file", fn)
+	log.Infof("Exported blockchain to, file=%v", fn)
 	return nil
 }

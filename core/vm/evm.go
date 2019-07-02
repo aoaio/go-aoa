@@ -173,7 +173,6 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	registerCost := new(big.Int)
 	registerCost.SetString(params.TxGasAgentCreation, 10)
 
-	//log.Debug("In method call", "value", value)
 
 	checkValue := value
 	if action == types.ActionSubVote {
@@ -211,7 +210,6 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 			return nil, gas, err
 		}
 	} else if action == types.ActionRegister {
-		//log.Info("HereRegister", "delegateList", *evm.DelegateList)
 		if _, ok := (*evm.DelegateList)[caller.Address()]; ok {
 			return nil, gas, errors.New("Address " + caller.Address().Hex() + " have already register delegate")
 		}

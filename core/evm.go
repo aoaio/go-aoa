@@ -126,21 +126,16 @@ func Vote(db vm.StateDB, user common.Address, amount *big.Int, vote []types.Vote
 	//}
 	newVoteList, diff, err := changeVoteList(db.GetVoteList(user), vote, d)
 	if err != nil {
-		log.Debug("InVoteError", "err", err)
+		log.Infof("InVoteError: %v", err)
 		return err
 	}
 	lockBalance, _ := new(big.Int).SetString(db.GetLockBalance(user).String(), 0)
-	//log.Info("Info", "lockBalance", lockBalance)
 	if (lockBalance.Add(lockBalance, diff)).Cmp(new(big.Int).Mul(big.NewInt(params.Aoa), big.NewInt(maxElectDelegate))) > 0 {
 		return vm.ErrVote
 	}
-	//log.Info("CoreEVMN", "diff", diff,"balance", db.GetBalance(user), "lockBalance", db.GetLockBalance(user))
 	db.SubBalance(user, diff)
-	//log.Info("LockBalance","balance", db.GetBalance(user), "lockBalance", db.GetLockBalance(user))
 	db.AddLockBalance(user, diff)
-	//log.Info("SetVOteList", "voteList", newVoteList)
 	db.SetVoteList(user, newVoteList)
-	//log.Info("Setvote finish", "balance", db.GetBalance(user), "lockBalance", db.GetLockBalance(user))
 	return nil
 }
 
@@ -149,7 +144,6 @@ func changeVoteList(prevVoteList []common.Address, curVoteList []types.Vote, del
 		voteChangeList = prevVoteList
 		diff           = int64(0)
 	)
-	//log.Info("core|evm|Vote", "dbVoteList", prevVoteList,"newVoteList", curVoteList)
 	for _, vote := range curVoteList {
 		switch vote.Operation {
 		case 0:
@@ -180,7 +174,6 @@ func changeVoteList(prevVoteList []common.Address, curVoteList []types.Vote, del
 
 func sliceContains(address common.Address, slice []common.Address) (int, bool) {
 	for i, a := range slice {
-		//log.Info("address == a", "address", address.Hex(), "a", a.Hex(), "result", address == a)
 		if address == a {
 			return i, true
 		}

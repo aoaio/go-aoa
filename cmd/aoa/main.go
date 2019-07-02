@@ -208,7 +208,6 @@ func main() {
 // It creates a default node based on the command line arguments and runs it in
 // blocking mode, waiting for it to be shut down.
 func gAoa(ctx *cli.Context) error {
-	log.Level = (log.Lvl)(ctx.GlobalInt(utils.LogLevelFlag.Name))
 	fullNode := makeFullNode(ctx)
 	startNode(ctx, fullNode)
 	fullNode.Wait()
@@ -221,7 +220,7 @@ func gAoa(ctx *cli.Context) error {
 func startNode(ctx *cli.Context, stack *node.Node) {
 	numCPU := runtime.NumCPU()
 	runtime.GOMAXPROCS(numCPU)
-	log.Info("start with multiple CPU", "cpu number", numCPU)
+	log.Infof("start with multiple CPU, cpu number=%v", numCPU)
 	// Start up the node itself
 	utils.StartNode(stack)
 
@@ -262,7 +261,7 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 				}
 			case accounts.WalletOpened:
 				status, _ := event.Wallet.Status()
-				log.Info("New wallet appeared", "url", event.Wallet.URL(), "status", status)
+				log.Infof("New wallet appeared, url=%v, status=%v", event.Wallet.URL(), status)
 
 				if event.Wallet.URL().Scheme == "ledger" {
 					event.Wallet.SelfDerive(accounts.DefaultLedgerBaseDerivationPath, stateReader)
@@ -271,7 +270,7 @@ func startNode(ctx *cli.Context, stack *node.Node) {
 				}
 
 			case accounts.WalletDropped:
-				log.Info("Old wallet dropped", "url", event.Wallet.URL())
+				log.Infof("Old wallet dropped, url=%v", event.Wallet.URL())
 				event.Wallet.Close()
 			}
 		}

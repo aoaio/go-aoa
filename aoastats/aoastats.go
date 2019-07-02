@@ -277,7 +277,7 @@ func (s *Service) readLoop(conn *websocket.Conn) {
 			log.Warn("Failed to decode stats server message", "err", err)
 			return
 		}
-		log.Trace("Received message from stats server", "msg", msg)
+		log.Debugf("Received message from stats server, msg=%v", msg)
 		if len(msg["emit"]) == 0 {
 			log.Warn("Stats server sent non-broadcast", "msg", msg)
 			return
@@ -330,7 +330,7 @@ func (s *Service) readLoop(conn *websocket.Conn) {
 			}
 		}
 		// Report anything else and continue
-		log.Info("Unknown stats message", "msg", msg)
+		log.Infof("Unknown stats message, %v", msg)
 	}
 }
 
@@ -442,7 +442,7 @@ func (s *Service) reportLatency(conn *websocket.Conn) error {
 	latency := strconv.Itoa(int((time.Since(start) / time.Duration(2)).Nanoseconds() / 1000000))
 
 	// Send back the measured latency
-	log.Trace("Sending measured latency to aoastats", "latency", latency)
+	log.Debugf("Sending measured latency to aoastats, latency=%v", latency)
 
 	stats := map[string][]interface{}{
 		"emit": {"latency", map[string]string{
@@ -492,7 +492,7 @@ func (s *Service) reportBlock(conn *websocket.Conn, block *types.Block) error {
 	details := s.assembleBlockStats(block)
 
 	// Assemble the block report and send it to the server
-	log.Trace("Sending new block to aoastats", "number", details.Number, "hash", details.Hash)
+	log.Debugf("Sending new block to aoastats, number=%v, hash=%v", details.Number, details.Hash.Hex())
 
 	stats := map[string]interface{}{
 		"id":    s.node,
@@ -586,9 +586,9 @@ func (s *Service) reportHistory(conn *websocket.Conn, list []uint64) error {
 	}
 	// Assemble the history report and send it to the server
 	if len(history) > 0 {
-		log.Trace("Sending historical blocks to aoastats", "first", history[0].Number, "last", history[len(history)-1].Number)
+		log.Debugf("Sending historical blocks to aoastats, first=%v, last=%v", history[0].Number, history[len(history)-1].Number)
 	} else {
-		log.Trace("No history to send to stats server")
+		log.Debug("No history to send to stats server")
 	}
 	stats := map[string]interface{}{
 		"id":      s.node,
@@ -613,7 +613,7 @@ func (s *Service) reportPending(conn *websocket.Conn) error {
 	pending, _ = s.aoa.TxPool().Stats()
 
 	// Assemble the transaction stats and send it to the server
-	log.Trace("Sending pending transactions to aoastats", "count", pending)
+	log.Debugf("Sending pending transactions to aoastats, count=%v", pending)
 
 	stats := map[string]interface{}{
 		"id": s.node,
@@ -655,7 +655,7 @@ func (s *Service) reportStats(conn *websocket.Conn) error {
 	gasprice = int(price.Uint64())
 
 	// Assemble the node stats and send it to the server
-	log.Trace("Sending node details to aoastats")
+	log.Debug("Sending node details to aoastats")
 	a, c := s.server.PeerCount()
 	stats := map[string]interface{}{
 		"id": s.node,

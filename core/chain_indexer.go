@@ -83,7 +83,6 @@ type ChainIndexer struct {
 
 	throttling time.Duration // Disk throttling to prevent a heavy upgrade from hogging resources
 
-	log  log.Logger
 	lock sync.RWMutex
 }
 
@@ -100,7 +99,6 @@ func NewChainIndexer(chainDb, indexDb aoadb.Database, backend ChainIndexerBacken
 		sectionSize: section,
 		confirmsReq: confirm,
 		throttling:  throttling,
-		log:         log.New("type", kind),
 	}
 	// Initialize database dependent fields and start the updater
 	c.loadValidSections()
@@ -279,7 +277,7 @@ func (c *ChainIndexer) updateLoop() {
 				if time.Since(updated) > 8*time.Second {
 					if c.knownSections > c.storedSections+1 {
 						updating = true
-						c.log.Info("Upgrading chain index", "percentage", c.storedSections*100/c.knownSections)
+						log.Infof("Upgrading chain index, percentage=%v", c.storedSections*100/c.knownSections)
 					}
 					updated = time.Now()
 				}
@@ -293,7 +291,7 @@ func (c *ChainIndexer) updateLoop() {
 				c.lock.Unlock()
 				newHead, err := c.processSection(section, oldHead)
 				if err != nil {
-					c.log.Error("Section processing failed", "error", err)
+					log.Error("Section processing failed", "error", err)
 				}
 				c.lock.Lock()
 
@@ -303,17 +301,17 @@ func (c *ChainIndexer) updateLoop() {
 					c.setValidSections(section + 1)
 					if c.storedSections == c.knownSections && updating {
 						updating = false
-						c.log.Info("Finished upgrading chain index")
+						log.Info("Finished upgrading chain index")
 					}
 
 					c.cascadedHead = c.storedSections*c.sectionSize - 1
 					for _, child := range c.children {
-						c.log.Trace("Cascading chain index update", "head", c.cascadedHead)
+						log.Debugf("Cascading chain index update, head=%v", c.cascadedHead)
 						child.newHead(c.cascadedHead, false)
 					}
 				} else {
 					// If processing failed, don't retry until further notification
-					c.log.Debug("Chain index processing failed", "section", section, "err", err)
+					log.Infof("Chain index processing failed, section=%v, err=%v", section, err)
 					c.knownSections = c.storedSections
 				}
 			}
@@ -336,7 +334,7 @@ func (c *ChainIndexer) updateLoop() {
 // held while processing, the continuity can be broken by a long reorg, in which
 // case the function returns with an error.
 func (c *ChainIndexer) processSection(section uint64, lastHead common.Hash) (common.Hash, error) {
-	c.log.Trace("Processing new chain section", "section", section)
+	log.Debugf("Processing new chain section, section=%v", section)
 
 	// Reset and partial processing
 
@@ -360,7 +358,7 @@ func (c *ChainIndexer) processSection(section uint64, lastHead common.Hash) (com
 		lastHead = header.Hash()
 	}
 	if err := c.backend.Commit(); err != nil {
-		c.log.Error("Section commit failed", "error", err)
+		log.Error("Section commit failed", "error", err)
 		return common.Hash{}, err
 	}
 	return lastHead, nil

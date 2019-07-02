@@ -920,8 +920,10 @@ func SetAoaConfig(ctx *cli.Context, stack *node.Node, cfg *aoa.Config) {
 			cfg.NetworkId = params.TestChainConfig.ChainId.Uint64()
 		}
 		cfg.Genesis = core.DefaultTestnetGenesisBlock()
+		core.StartMode = "--" + TestnetFlag.Name
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		// Create new developer account or reuse existing one
+		core.StartMode = "--" + DeveloperFlag.Name
 		var developers []common.Address
 		for i := 0; i < 3; i++ {
 			var (
@@ -940,7 +942,7 @@ func SetAoaConfig(ctx *cli.Context, stack *node.Node, cfg *aoa.Config) {
 				Fatalf("Failed to unlock developer account: %v", err)
 			}
 			developers = append(developers, developer.Address)
-			log.Info("Using developer account", "address", developer.Address)
+			log.Infof("Using developer account, address=%v", developer.Address.Hex())
 		}
 		cfg.Genesis = core.DeveloperGenesisBlock(developers)
 		if !ctx.GlobalIsSet(GasPriceFlag.Name) {

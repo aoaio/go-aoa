@@ -398,7 +398,6 @@ func (tx *Transaction) AsMessage(s Signer) (Message, error) {
 	}
 	//now := time.Now()
 	msg.from, err = Sender(s, tx)
-	//log.Info("AsMessage", "time", time.Now().Sub(now))
 	return msg, err
 }
 
@@ -409,7 +408,7 @@ func (tx *Transaction) WithSignature(signer Signer, sig []byte) (*Transaction, e
 	if err != nil {
 		return nil, err
 	}
-	log.Debug("Transaction|WithSignature", "v", v.Int64())
+	log.Infof("Transaction|WithSignature, V=%v",v.Int64())
 	cpy := &Transaction{data: tx.data}
 	cpy.data.R, cpy.data.S, cpy.data.V = r, s, v
 	return cpy, nil
@@ -417,7 +416,7 @@ func (tx *Transaction) WithSignature(signer Signer, sig []byte) (*Transaction, e
 
 // AoaCost returns aoa required.
 func (tx *Transaction) AoaCost() *big.Int {
-	log.Info("Transaction|AoaCost,", "transaction", tx.data)
+	log.Debugf("Transaction|AoaCost, transaction=%v", tx.data)
 	total := new(big.Int).Mul(tx.data.Price, new(big.Int).SetUint64(tx.data.GasLimit))
 	// agent register cost
 	if tx.data.Action == ActionRegister {
@@ -425,11 +424,11 @@ func (tx *Transaction) AoaCost() *big.Int {
 		registerCost.SetString(params.TxGasAgentCreation, 10)
 		// 扣除100，精度是18位
 		total.Add(total, registerCost)
-		log.Info("register agent cost", "total", total)
+		log.Infof("register agent cost, total=%v", total)
 	} else if (tx.data.Asset == nil || (*tx.data.Asset == common.Address{})) && (tx.data.Amount != nil && tx.data.Amount.Sign() > 0) {
 		total.Add(total, tx.data.Amount)
 	}
-	log.Debug("cost", "total", total)
+	log.Infof("cost %v", total)
 	return total
 }
 
@@ -599,7 +598,6 @@ func (s *TxByPrice) Remove(index int) common.Hash {
 }
 
 func SortByPriceAndNonce(signer Signer, txList TxByPrice) Transactions {
-	//log.Info("SortByPriceAndNonce start", "txList", len(txList))
 	txs := make(map[common.Address]chan *Transaction, len(txList))
 	for _, tx := range txList {
 		from, _ := Sender(signer, tx)
@@ -608,19 +606,16 @@ func SortByPriceAndNonce(signer Signer, txList TxByPrice) Transactions {
 		}
 		txs[from] <- tx
 	}
-	//log.Info("SortByPriceAndNonce 1 start", "txList", len(txList))
 	var sortResults []<-chan *Transaction
 	for _, txChannel := range txs {
 		sortResults = append(sortResults, inMemSort(txChannel))
 		close(txChannel)
 	}
-	//log.Info("SortByPriceAndNonce 2 start", "txList", len(txList))
 	finalSort := mergeNTxs(sortResults...)
 	result := make(Transactions, 0)
 	for tx := range finalSort {
 		result = append(result, tx)
 	}
-	//log.Info("SortByPriceAndNonce end", "txList", len(txList))
 	return result
 }
 

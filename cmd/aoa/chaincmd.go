@@ -162,10 +162,10 @@ func initGenesis(ctx *cli.Context) error {
 		if err != nil {
 			utils.Fatalf("Failed to write genesis block: %v", err)
 		}
-		log.Info("Successfully wrote genesis state", "database", name, "hash", hash)
+		log.Infof("Successfully wrote genesis state, database=%v, hash=%v", name, hash.Hex())
 	}
 	bytes, _ := genesis.MarshalJSON()
-	log.Info("genesis", "json", string(bytes))
+	log.Infof("genesis json; %v", string(bytes))
 	return nil
 }
 
@@ -335,11 +335,10 @@ func removeDB(ctx *cli.Context) error {
 
 	for _, name := range []string{"chaindata", "lightchaindata"} {
 		// Ensure the database exists in the first place
-		logger := log.New("database", name)
 
 		dbdir := stack.ResolvePath(name)
 		if !common.FileExist(dbdir) {
-			logger.Info("Database doesn't exist, skipping", "path", dbdir)
+			log.Infof("Database doesn't exist, skipping, path=%v", dbdir)
 			continue
 		}
 		// Confirm removal and execute
@@ -349,11 +348,11 @@ func removeDB(ctx *cli.Context) error {
 		case err != nil:
 			utils.Fatalf("%v", err)
 		case !confirm:
-			logger.Warn("Database deletion aborted")
+			log.Warn("Database deletion aborted")
 		default:
 			start := time.Now()
 			os.RemoveAll(dbdir)
-			logger.Info("Database successfully deleted", "elapsed", common.PrettyDuration(time.Since(start)))
+			log.Infof("Database successfully deleted, elapsed=%v", common.PrettyDuration(time.Since(start)))
 		}
 	}
 	return nil

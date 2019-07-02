@@ -81,7 +81,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		monitorUpgrade(*tx, receipt)
 		// AOA upgrade end by rt
 
-		//log.Info("Process", "usedGas", *usedGas)
 		receipts = append(receipts, receipt)
 		allLogs = append(allLogs, receipt.Logs...)
 	}
@@ -112,7 +111,7 @@ func ApplyTransaction(config *params.ChainConfig, bc *BlockChain, author *common
 		return nil, 0, err
 	}
 	err = voteChangeToDelegateState(msg.From(), tx, statedb, db, blockTime, header.Number.Int64())
-	// log.Debug("applyTransaction|voteChangeToDelegateState cost", "timestamp", time.Now().Sub(now4))
+	// log.Info("applyTransaction|voteChangeToDelegateState cost", "timestamp", time.Now().Sub(now4))
 	if err != nil {
 		return nil, 0, err
 	}

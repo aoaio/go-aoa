@@ -89,12 +89,12 @@ func (journal *txJournal) load(add func(*types.Transaction) error) error {
 		// Import the transaction and bump the appropriate progress counters
 		total++
 		if err = add(tx); err != nil {
-			log.Debug("Failed to add journaled transaction", "err", err)
+			log.Info("Failed to add journaled transaction", "err", err)
 			dropped++
 			continue
 		}
 	}
-	log.Info("Loaded local transaction journal", "transactions", total, "dropped", dropped)
+	log.Infof("Loaded local transaction journal, transactions=%v, dropped=%v", total, dropped)
 
 	return failure
 }
@@ -146,7 +146,7 @@ func (journal *txJournal) rotate(all map[common.Address]types.Transactions) erro
 		return err
 	}
 	journal.writer = sink
-	log.Info("Regenerated local transaction journal", "transactions", journaled, "accounts", len(all))
+	log.Infof("Regenerated local transaction journal, transactions=%v, accounts=%v", journaled, len(all))
 
 	return nil
 }
