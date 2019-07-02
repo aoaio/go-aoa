@@ -76,7 +76,7 @@ func wsHandshakeValidator(allowedOrigins []string) func(*websocket.Config, *http
 		}
 	}
 
-	log.Debug(fmt.Sprintf("Allowed origin(s) for WS RPC interface %v\n", origins.List()))
+	log.Info(fmt.Sprintf("Allowed origin(s) for WS RPC interface %v\n", origins.List()))
 
 	f := func(cfg *websocket.Config, req *http.Request) error {
 		origin := strings.ToLower(req.Header.Get("Origin"))

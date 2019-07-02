@@ -176,7 +176,7 @@ func testClientCancel(transport string, t *testing.T) {
 			// The key thing here is that no call will ever complete successfully.
 			err := client.CallContext(ctx, nil, "service_sleep", 2*maxContextCancelTimeout)
 			if err != nil {
-				log.Debug(fmt.Sprint("got expected error:", err))
+				log.Info(fmt.Sprint("got expected error:", err))
 			} else {
 				t.Errorf("no error for call with %v wait time", timeout)
 			}
@@ -559,7 +559,7 @@ func (l *flakeyListener) Accept() (net.Conn, error) {
 	if err == nil {
 		timeout := time.Duration(rand.Int63n(int64(l.maxKillTimeout)))
 		time.AfterFunc(timeout, func() {
-			log.Debug(fmt.Sprintf("killing conn %v after %v", c.LocalAddr(), timeout))
+			log.Info(fmt.Sprintf("killing conn %v after %v", c.LocalAddr(), timeout))
 			c.Close()
 		})
 	}

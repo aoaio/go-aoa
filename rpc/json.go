@@ -170,7 +170,7 @@ func parseRequest(incomingMsg json.RawMessage) ([]rpcRequest, bool, Error) {
 			// first param must be subscription name
 			var subscribeMethod [1]string
 			if err := json.Unmarshal(in.Payload, &subscribeMethod); err != nil {
-				log.Debug(fmt.Sprintf("Unable to parse subscription method: %v\n", err))
+				log.Info(fmt.Sprintf("Unable to parse subscription method: %v\n", err))
 				return nil, false, &invalidRequestError{"Unable to parse subscription request"}
 			}
 
@@ -222,7 +222,7 @@ func parseBatchRequest(incomingMsg json.RawMessage) ([]rpcRequest, bool, Error) 
 				// first param must be subscription name
 				var subscribeMethod [1]string
 				if err := json.Unmarshal(r.Payload, &subscribeMethod); err != nil {
-					log.Debug(fmt.Sprintf("Unable to parse subscription method: %v\n", err))
+					log.Info(fmt.Sprintf("Unable to parse subscription method: %v\n", err))
 					return nil, false, &invalidRequestError{"Unable to parse subscription request"}
 				}
 
@@ -280,7 +280,6 @@ func parsePositionalArguments(rawArgs json.RawMessage, types []reflect.Type) ([]
 			return nil, &invalidParamsError{fmt.Sprintf("too many arguments, want at most %d", len(types))}
 		}
 		argval := reflect.New(types[i])
-		//log.Info("ParsePositionalArguments", "type", walletType[i], "argval", argval)
 		if err := dec.Decode(argval.Interface()); err != nil {
 			return nil, &invalidParamsError{fmt.Sprintf("invalid argument %d: %v", i, err)}
 		}
