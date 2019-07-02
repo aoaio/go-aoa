@@ -52,12 +52,10 @@ type LDBDatabase struct {
 	quitLock sync.Mutex      // Mutex protecting the quit channel access
 	quitChan chan chan error // Quit channel to stop the metrics collection before closing the database
 
-	log log.Logger // Contextual logger tracking the database path
 }
 
 // NewLDBDatabase returns a LevelDB wrapped object.
 func NewLDBDatabase(file string, cache int, handles int) (*LDBDatabase, error) {
-	logger := log.New("database", file)
 
 	// Ensure we have some minimal caching and file guarantees
 	if cache < 16 {
@@ -66,7 +64,7 @@ func NewLDBDatabase(file string, cache int, handles int) (*LDBDatabase, error) {
 	if handles < 16 {
 		handles = 16
 	}
-	logger.Info("Allocated cache and file handles", "cache", cache, "handles", handles)
+	log.Infof("Allocated cache and file handles, cache=%v, handles=%v", cache, handles)
 
 	// Open the db and recover any potential corruptions
 	db, err := leveldb.OpenFile(file, &opt.Options{
@@ -85,7 +83,6 @@ func NewLDBDatabase(file string, cache int, handles int) (*LDBDatabase, error) {
 	return &LDBDatabase{
 		fn:  file,
 		db:  db,
-		log: logger,
 	}, nil
 }
 
@@ -155,14 +152,14 @@ func (db *LDBDatabase) Close() {
 		errc := make(chan error)
 		db.quitChan <- errc
 		if err := <-errc; err != nil {
-			db.log.Error("Metrics collection failed", "err", err)
+			log.Error("Metrics collection failed", "err", err)
 		}
 	}
 	err := db.db.Close()
 	if err == nil {
-		db.log.Info("Database closed")
+		log.Info("Database closed")
 	} else {
-		db.log.Error("Failed to close database", "err", err)
+		log.Error("Failed to close database", "err", err)
 	}
 }
 
@@ -217,7 +214,7 @@ func (db *LDBDatabase) meter(refresh time.Duration) {
 		// Retrieve the database stats
 		stats, err := db.db.GetProperty("leveldb.stats")
 		if err != nil {
-			db.log.Error("Failed to read database stats", "err", err)
+			log.Error("Failed to read database stats", "err", err)
 			return
 		}
 		// Find the compaction table, skip the header
@@ -226,7 +223,7 @@ func (db *LDBDatabase) meter(refresh time.Duration) {
 			lines = lines[1:]
 		}
 		if len(lines) <= 3 {
-			db.log.Error("Compaction table not found")
+			log.Error("Compaction table not found")
 			return
 		}
 		lines = lines[3:]
@@ -243,7 +240,7 @@ func (db *LDBDatabase) meter(refresh time.Duration) {
 			for idx, counter := range parts[3:] {
 				value, err := strconv.ParseFloat(strings.TrimSpace(counter), 64)
 				if err != nil {
-					db.log.Error("Compaction entry parsing failed", "err", err)
+					log.Error("Compaction entry parsing failed", "err", err)
 					return
 				}
 				counters[i%2][idx] += value
