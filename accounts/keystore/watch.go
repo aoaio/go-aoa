@@ -63,15 +63,14 @@ func (w *watcher) loop() {
 		w.starting = false
 		w.ac.mu.Unlock()
 	}()
-	logger := log.New("path", w.ac.keydir)
 
 	if err := notify.Watch(w.ac.keydir, w.ev, notify.All); err != nil {
-		logger.Trace("Failed to watch keystore folder", "err", err)
+		log.Debugf("Failed to watch keystore folder, err=%v", err)
 		return
 	}
 	defer notify.Stop(w.ev)
-	logger.Trace("Started watching keystore folder")
-	defer logger.Trace("Stopped watching keystore folder")
+	log.Debug("Started watching keystore folder")
+	defer log.Debug("Stopped watching keystore folder")
 
 	w.ac.mu.Lock()
 	w.running = true
