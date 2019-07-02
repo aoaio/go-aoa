@@ -235,7 +235,7 @@ func ListenUDP(priv *ecdsa.PrivateKey, conn conn, realaddr *net.UDPAddr, unhandl
 	if err != nil {
 		return nil, err
 	}
-	log.Info("UDP listener up", "self", tab.self)
+	log.Infof("UDP listener up, self=%v", tab.self)
 	return tab, nil
 }
 
@@ -296,7 +296,7 @@ func (t *udp) findnode(toid NodeID, toaddr *net.UDPAddr, target NodeID, netType 
 			nreceived++
 			n, err := t.nodeFromRPC(toaddr, rn)
 			if err != nil {
-				log.Trace("Invalid neighbor node received", "ip", rn.IP, "addr", toaddr, "err", err)
+				log.Debugf("Invalid neighbor node received, ip=%v, addr=%v, err=%v", rn.IP, toaddr, err)
 				continue
 			}
 			nodes = append(nodes, n)
@@ -472,7 +472,7 @@ func (t *udp) send(toaddr *net.UDPAddr, ptype byte, req packet) error {
 		return err
 	}
 	_, err = t.conn.WriteToUDP(packet, toaddr)
-	log.Trace(">> "+req.name(), "addr", toaddr, "err", err)
+	log.Debugf(">> %v, toAddr=%v, err=%v", req.name(), toaddr, err)
 	return err
 }
 
@@ -481,13 +481,13 @@ func encodePacket(priv *ecdsa.PrivateKey, ptype byte, req interface{}) ([]byte, 
 	b.Write(headSpace)
 	b.WriteByte(ptype)
 	if err := rlp.Encode(b, req); err != nil {
-		log.Error("Can't encode discv4 packet", "err", err)
+		log.Errorf("Can't encode discv4 packet, err=%v", err)
 		return nil, err
 	}
 	packet := b.Bytes()
 	sig, err := crypto.Sign(crypto.Keccak256(packet[headSize:]), priv)
 	if err != nil {
-		log.Error("Can't sign discv4 packet", "err", err)
+		log.Errorf("Can't sign discv4 packet, err=%v", err)
 		return nil, err
 	}
 	copy(packet[macSize:], sig)
@@ -512,11 +512,11 @@ func (t *udp) readLoop(unhandled chan ReadPacket) {
 		nbytes, from, err := t.conn.ReadFromUDP(buf)
 		if netutil.IsTemporaryError(err) {
 			// Ignore temporary read errors.
-			log.Debug("Temporary UDP read error", "err", err)
+			log.Infof("Temporary UDP read error: %v",  err)
 			continue
 		} else if err != nil {
 			// Shut down the loop for permament errors.
-			log.Debug("UDP read error", "err", err)
+			log.Infof("UDP read error: %v", err)
 			return
 		}
 		if t.handlePacket(from, buf[:nbytes]) != nil && unhandled != nil {
@@ -531,11 +531,11 @@ func (t *udp) readLoop(unhandled chan ReadPacket) {
 func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 	packet, fromID, hash, err := decodePacket(buf)
 	if err != nil {
-		log.Debug("Bad discv4 packet", "addr", from, "err", err)
+		log.Infof("Bad discv4 packet, addr=%v, err=%v", from, err)
 		return err
 	}
 	err = packet.handle(t, from, fromID, hash)
-	log.Trace("<< "+packet.name(), "addr", from, "err", err)
+	log.Debugf("<< %v, addr=%v, err=%v", packet.name(), from, err)
 	return err
 }
 

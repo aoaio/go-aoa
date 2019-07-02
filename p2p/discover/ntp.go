@@ -52,7 +52,7 @@ func checkClockDrift() {
 		log.Warn(fmt.Sprintf("System clock seems off by %v, which can prevent network connectivity", drift))
 		log.Warn("Please enable network time synchronisation in system settings.")
 	} else {
-		log.Debug("NTP sanity check done", "drift", drift)
+		log.Infof("NTP sanity check done, drift=%v", drift)
 	}
 }
 

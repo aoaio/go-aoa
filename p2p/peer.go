@@ -99,7 +99,6 @@ type PeerEvent struct {
 type Peer struct {
 	rw       *conn
 	running  map[string]*protoRW
-	log      log.Logger
 	created  mclock.AbsTime
 	netType  byte
 	wg       sync.WaitGroup
@@ -178,14 +177,9 @@ func newPeer(conn *conn, protocols []Protocol) *Peer {
 		disc:     make(chan DiscReason),
 		protoErr: make(chan error, len(protomap)+1), // protocols + pingLoop
 		closed:   make(chan struct{}),
-		log:      log.New("id", conn.id, "conn", conn.flags),
 		netType:  conn.netType,
 	}
 	return p
-}
-
-func (p *Peer) Log() log.Logger {
-	return p.log
 }
 
 func (p *Peer) run() (remoteRequested bool, err error) {
@@ -349,14 +343,14 @@ func (p *Peer) startProtocols(writeStart <-chan struct{}, writeErr chan<- error)
 		if p.events != nil {
 			rw = newMsgEventer(rw, p.events, p.ID(), proto.Name)
 		}
-		p.log.Trace(fmt.Sprintf("Starting protocol %s/%d", proto.Name, proto.Version))
+		log.Debug(fmt.Sprintf("Starting protocol %s/%d", proto.Name, proto.Version))
 		go func() {
 			err := proto.Run(p, rw, p.netType)
 			if err == nil {
-				p.log.Trace(fmt.Sprintf("Protocol %s/%d returned", proto.Name, proto.Version))
+				log.Debug(fmt.Sprintf("Protocol %s/%d returned", proto.Name, proto.Version))
 				err = errProtocolReturned
 			} else if err != io.EOF {
-				p.log.Trace(fmt.Sprintf("Protocol %s/%d failed", proto.Name, proto.Version), "err", err)
+				log.Debug(fmt.Sprintf("Protocol %s/%d failed", proto.Name, proto.Version), "err", err)
 			}
 			p.protoErr <- err
 			p.wg.Done()

@@ -59,7 +59,7 @@ func checkClockDrift() {
 		log.Warn(howtofix)
 		log.Warn(separator)
 	} else {
-		log.Debug(fmt.Sprintf("Sanity NTP check reported %v drift, all ok", drift))
+		log.Info(fmt.Sprintf("Sanity NTP check reported %v drift, all ok", drift))
 	}
 }
 

@@ -247,7 +247,7 @@ func ListenUDP(priv *ecdsa.PrivateKey, conn conn, realaddr *net.UDPAddr, nodeDBP
 	if err != nil {
 		return nil, err
 	}
-	log.Info("UDP listener up", "net", net.tab.self)
+	log.Infof("UDP listener up, net=%v", net.tab.self)
 	transport.net = net
 	go transport.readLoop()
 	return net, nil
@@ -341,9 +341,9 @@ func (t *udp) sendPacket(toid NodeID, toaddr *net.UDPAddr, ptype byte, req inter
 		//fmt.Println(err)
 		return hash, err
 	}
-	log.Trace(fmt.Sprintf(">>> %v to %x@%v", nodeEvent(ptype), toid[:8], toaddr))
+	log.Debug(fmt.Sprintf(">>> %v to %x@%v", nodeEvent(ptype), toid[:8], toaddr))
 	if _, err = t.conn.WriteToUDP(packet, toaddr); err != nil {
-		log.Trace(fmt.Sprint("UDP send failed:", err))
+		log.Debug(fmt.Sprint("UDP send failed:", err))
 	}
 	//fmt.Println(err)
 	return hash, err
@@ -384,11 +384,11 @@ func (t *udp) readLoop() {
 		nbytes, from, err := t.conn.ReadFromUDP(buf)
 		if netutil.IsTemporaryError(err) {
 			// Ignore temporary read errors.
-			log.Debug(fmt.Sprintf("Temporary read error: %v", err))
+			log.Info(fmt.Sprintf("Temporary read error: %v", err))
 			continue
 		} else if err != nil {
 			// Shut down the loop for permament errors.
-			log.Debug(fmt.Sprintf("Read error: %v", err))
+			log.Info(fmt.Sprintf("Read error: %v", err))
 			return
 		}
 		t.handlePacket(from, buf[:nbytes])
@@ -398,7 +398,7 @@ func (t *udp) readLoop() {
 func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 	pkt := ingressPacket{remoteAddr: from}
 	if err := decodePacket(buf, &pkt); err != nil {
-		log.Debug(fmt.Sprintf("Bad packet from %v: %v", from, err))
+		log.Info(fmt.Sprintf("Bad packet from %v: %v", from, err))
 		//fmt.Println("bad packet", err)
 		return err
 	}

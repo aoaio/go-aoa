@@ -352,11 +352,11 @@ func execP2PNode() {
 	// decode the config
 	confEnv := os.Getenv("_P2P_NODE_CONFIG")
 	if confEnv == "" {
-		log.Crit("missing _P2P_NODE_CONFIG")
+		log.Error("missing _P2P_NODE_CONFIG")
 	}
 	var conf execNodeConfig
 	if err := json.Unmarshal([]byte(confEnv), &conf); err != nil {
-		log.Crit("error decoding _P2P_NODE_CONFIG", "err", err)
+		log.Error("error decoding _P2P_NODE_CONFIG", "err", err)
 	}
 	conf.Stack.P2P.PrivateKey = conf.Node.PrivateKey
 	conf.Stack.Logger = log.New("node.id", conf.Node.ID.String())
@@ -365,14 +365,14 @@ func execP2PNode() {
 	externalIP := func() string {
 		addrs, err := net.InterfaceAddrs()
 		if err != nil {
-			log.Crit("error getting IP address", "err", err)
+			log.Error("error getting IP address", "err", err)
 		}
 		for _, addr := range addrs {
 			if ip, ok := addr.(*net.IPNet); ok && !ip.IP.IsLoopback() {
 				return ip.IP.String()
 			}
 		}
-		log.Crit("unable to determine explicit IP address")
+		log.Error("unable to determine explicit IP address")
 		return ""
 	}
 	if strings.HasPrefix(conf.Stack.P2P.ListenAddr, ":") {
@@ -385,7 +385,7 @@ func execP2PNode() {
 	// initialize the devp2p stack
 	stack, err := node.New(&conf.Stack)
 	if err != nil {
-		log.Crit("error creating node stack", "err", err)
+		log.Error("error creating node stack", "err", err)
 	}
 
 	// register the services, collecting them into a map so we can wrap
@@ -394,7 +394,7 @@ func execP2PNode() {
 	for _, name := range serviceNames {
 		serviceFunc, exists := serviceFuncs[name]
 		if !exists {
-			log.Crit("unknown node service", "name", name)
+			log.Error("unknown node service", "name", name)
 		}
 		constructor := func(nodeCtx *node.ServiceContext) (node.Service, error) {
 			ctx := &ServiceContext{
@@ -413,7 +413,7 @@ func execP2PNode() {
 			return service, nil
 		}
 		if err := stack.Register(constructor); err != nil {
-			log.Crit("error starting service", "name", name, "err", err)
+			log.Error("error starting service", "name", name, "err", err)
 		}
 	}
 
@@ -421,12 +421,12 @@ func execP2PNode() {
 	if err := stack.Register(func(ctx *node.ServiceContext) (node.Service, error) {
 		return &snapshotService{services}, nil
 	}); err != nil {
-		log.Crit("error starting snapshot service", "err", err)
+		log.Error("error starting snapshot service", "err", err)
 	}
 
 	// start the stack
 	if err := stack.Start(); err != nil {
-		log.Crit("error stating node stack", "err", err)
+		log.Error("error stating node stack", "err", err)
 	}
 
 	// stop the stack if we get a SIGTERM signal

@@ -236,7 +236,7 @@ func (t *topicTable) deleteEntry(e *topicEntry) {
 
 // It is assumed that topics and waitPeriods have the same length.
 func (t *topicTable) useTicket(node *Node, serialNo uint32, topics []Topic, idx int, issueTime uint64, waitPeriods []uint32) (registered bool) {
-	log.Trace("Using discovery ticket", "serial", serialNo, "topics", topics, "waits", waitPeriods)
+	log.Debugf("Using discovery ticket, serialNo=%v, topics=%v, waits=%v", serialNo, topics, waitPeriods)
 	//fmt.Println("useTicket", serialNo, topics, waitPeriods)
 	t.collectGarbage()
 

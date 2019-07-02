@@ -190,7 +190,7 @@ func (s *dialstate) newTasks(nRunning int, peers map[discover.NodeID]*Peer, now 
 	var newtasks []task
 	addDial := func(flag connFlag, n *discover.Node) bool {
 		if err := s.checkDial(n, peers); err != nil {
-			log.Trace("Skipping dial candidate", "id", n.ID, "addr", &net.TCPAddr{IP: n.IP, Port: int(n.TCP)}, "err", err)
+			log.Debugf("Skipping dial candidate, id=%v, addr=%v, err=%v", n.ID, &net.TCPAddr{IP: n.IP, Port: int(n.TCP)}, err)
 			return false
 		}
 
@@ -360,7 +360,7 @@ func (s *dialstate) taskDone(t task, now time.Time) {
 }
 
 func (t *dialTask) Do(srv *Server) {
-	log.Debug("开始执行远程节点任务", "node", t.dest, "netType", t.netType)
+	log.Infof("start connect remote node task, node=%v, netType=%v", t.dest, t.netType)
 	if t.dest.Incomplete() {
 		if !t.resolve(srv) {
 			return
@@ -372,7 +372,7 @@ func (t *dialTask) Do(srv *Server) {
 			t.ds.ntab.Delete(t.dest.ID)
 		}
 
-		log.Info("链接远程节点失败", "err", err.Error())
+		log.Infof("connect to remote node failed, err=%v", err.Error())
 
 	}
 
@@ -391,7 +391,7 @@ func (t *dialTask) GetNetType() byte {
 // The backoff delay resets when the node is found.
 func (t *dialTask) resolve(srv *Server) bool {
 	if srv.ntab == nil {
-		log.Debug("Can't resolve node", "id", t.dest.ID, "err", "discovery is disabled")
+		log.Infof("Can't resolve node, id=%v, discovery is disabled",  t.dest.ID)
 		return false
 	}
 	if t.resolveDelay == 0 {
@@ -407,13 +407,13 @@ func (t *dialTask) resolve(srv *Server) bool {
 		if t.resolveDelay > maxResolveDelay {
 			t.resolveDelay = maxResolveDelay
 		}
-		log.Debug("Resolving node failed", "id", t.dest.ID, "newdelay", t.resolveDelay)
+		log.Infof("Resolving node failed, id=%v, newDelay=%v", t.dest.ID, t.resolveDelay)
 		return false
 	}
 	// The node was found.
 	t.resolveDelay = initialResolveDelay
 	t.dest = resolved
-	log.Debug("Resolved node", "id", t.dest.ID, "addr", &net.TCPAddr{IP: t.dest.IP, Port: int(t.dest.TCP)})
+	log.Infof("Resolved node, id=%v, addr=%v", t.dest.ID, &net.TCPAddr{IP: t.dest.IP, Port: int(t.dest.TCP)})
 	return true
 }
 
@@ -426,7 +426,7 @@ func (t *dialTask) dial(srv *Server, dest *discover.Node) error {
 	fd, err := srv.Dialer.Dial(dest)
 
 	if err != nil {
-		log.Info("建立tcp链接错误", "tcpconnectionErr", err)
+		log.Infof("Establish tcp connection error: %v",  err)
 		return &dialError{err}
 	}
 	mfd := newMeteredConn(fd, false)

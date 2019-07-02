@@ -156,7 +156,6 @@ func (tab *Table) Delete(target NodeID) {
 	if node != nil {
 		tab.delete(node, ConsNet)
 		tab.delete(node, CommNet)
-		//log.Info("删除节点","nodeid",target.String())
 	}
 
 }
@@ -341,10 +340,10 @@ func (tab *Table) lookup(targetID NodeID, refreshIfEmpty bool, netType byte) []*
 						// Bump the failure counter to detect and evacuate non-bonded entries
 						fails := tab.db.findFails(n.ID) + 1
 						tab.db.updateFindFails(n.ID, fails)
-						log.Trace("Bumping findnode failure counter", "id", n.ID, "failcount", fails)
+						log.Debugf("Bumping findnode failure counter, id=%v, failCount=%v", n.ID, fails)
 
 						if fails >= maxFindnodeFailures {
-							log.Info("Too many findnode failures, dropping", "id", n.ID, "failcount", fails)
+							log.Infof("Too many findnode failures, dropping, id=%v, failCount=%v", n.ID, fails)
 							tab.delete(n, netType)
 						}
 					}
@@ -451,8 +450,8 @@ func (tab *Table) doRefresh(done chan struct{}) {
 			// log.Error("No discv4 seed nodes found")
 		}
 		for _, n := range seeds {
-			age := log.Lazy{Fn: func() time.Duration { return time.Since(tab.db.lastPong(n.ID)) }}
-			log.Trace("查询到种子节点", "id", n.ID, "addr", n.addr(), "age", age)
+			age := time.Since(tab.db.lastPong(n.ID))
+			log.Debugf("Query seed node, id=%v, addr=%v, age=%v",  n.ID,  n.addr(), age)
 		}
 		tab.mutex.Lock()
 		tab.stuff(seeds, CommNet)
@@ -463,7 +462,7 @@ func (tab *Table) doRefresh(done chan struct{}) {
 	}()
 
 	if tab.openTop {
-		log.Debug("开始刷新顶层kad网络")
+		log.Info("start to refresh top level KAD network")
 		wg.Add(1)
 		go func() {
 			seeds = tab.bondall(append(seeds, tab.nursery...), ConsNet)
@@ -471,8 +470,8 @@ func (tab *Table) doRefresh(done chan struct{}) {
 				log.Error("No discv4 seed nodes found")
 			}
 			for _, n := range seeds {
-				age := log.Lazy{Fn: func() time.Duration { return time.Since(tab.db.lastPong(n.ID)) }}
-				log.Error("Found seed node in database", "id", n.ID, "addr", n.addr(), "age", age)
+				age := time.Since(tab.db.lastPong(n.ID))
+				log.Errorf("Found seed node in database, id=%v, addr=%v, age=%v", n.ID, n.addr(),  age)
 			}
 			tab.consmutex.Lock()
 			tab.stuff(seeds, ConsNet)
@@ -498,8 +497,8 @@ func (tab *Table) doRefreshConsNetRightNow() {
 		log.Error("No discv4 seed nodes found")
 	}
 	for _, n := range seeds {
-		age := log.Lazy{Fn: func() time.Duration { return time.Since(tab.db.lastPong(n.ID)) }}
-		log.Trace("Found seed node in database", "id", n.ID, "addr", n.addr(), "age", age)
+		age := time.Since(tab.db.lastPong(n.ID))
+		log.Debugf("Found seed node in database, id=%v, addr=%v, age=%v", n.ID, n.addr(), age)
 	}
 	tab.consmutex.Lock()
 	tab.stuff(seeds, ConsNet)
@@ -600,7 +599,7 @@ func (tab *Table) bond(pinged bool, id NodeID, addr *net.UDPAddr, tcpPort uint16
 	var result error
 	age := time.Since(tab.db.lastPong(id))
 	if node == nil || fails > 0 || age > nodeDBNodeExpiration {
-		log.Trace("Starting bonding ping/pong", "id", id, "known", node != nil, "failcount", fails, "age", age)
+		log.Debugf("Starting bonding ping/pong, id=%v, known=%v, failCount=%v, age=%v", id, node != nil, fails, age)
 
 		tab.bondmu.Lock()
 		w := tab.bonding[id]

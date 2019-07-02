@@ -41,9 +41,6 @@ var adapterType = flag.String("adapter", "sim", `node adapter to use (one of "si
 func main() {
 	flag.Parse()
 
-	// set the log level to Trace
-	log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
-
 	// register a single ping-pong service
 	services := map[string]adapters.ServiceFunc{
 		"ping-pong": func(ctx *adapters.ServiceContext) (node.Service, error) {
@@ -64,10 +61,10 @@ func main() {
 	case "exec":
 		tmpdir, err := ioutil.TempDir("", "p2p-example")
 		if err != nil {
-			log.Crit("error creating temp dir", "err", err)
+			log.Error("error creating temp dir", "err", err)
 		}
 		defer os.RemoveAll(tmpdir)
-		log.Info("using exec adapter", "tmpdir", tmpdir)
+		log.Infof("using exec adapter, tmpdir=%v", tmpdir)
 		adapter = adapters.NewExecAdapter(tmpdir)
 
 	case "docker":
@@ -75,11 +72,11 @@ func main() {
 		var err error
 		adapter, err = adapters.NewDockerAdapter()
 		if err != nil {
-			log.Crit("error creating docker adapter", "err", err)
+			log.Error("error creating docker adapter", "err", err)
 		}
 
 	default:
-		log.Crit(fmt.Sprintf("unknown node adapter %q", *adapterType))
+		log.Error(fmt.Sprintf("unknown node adapter %q", *adapterType))
 	}
 
 	// start the HTTP API
@@ -88,7 +85,7 @@ func main() {
 		DefaultService: "ping-pong",
 	})
 	if err := http.ListenAndServe(":8888", simulations.NewServer(network)); err != nil {
-		log.Crit("error starting simulation server", "err", err)
+		log.Error("error starting simulation server", "err", err)
 	}
 }
 
@@ -97,14 +94,12 @@ func main() {
 // return
 type pingPongService struct {
 	id       discover.NodeID
-	log      log.Logger
 	received int64
 }
 
 func newPingPongService(id discover.NodeID) *pingPongService {
 	return &pingPongService{
 		id:  id,
-		log: log.New("node.id", id),
 	}
 }
 
@@ -123,12 +118,12 @@ func (p *pingPongService) APIs() []rpc.API {
 }
 
 func (p *pingPongService) Start(server *p2p.Server) error {
-	p.log.Info("ping-pong service starting")
+	log.Info("ping-pong service starting")
 	return nil
 }
 
 func (p *pingPongService) Stop() error {
-	p.log.Info("ping-pong service stopping")
+	log.Info("ping-pong service stopping")
 	return nil
 }
 
@@ -148,7 +143,6 @@ const (
 // Run implements the ping-pong protocol which sends ping messages to the peer
 // at 10s intervals, and responds to pings with pong messages.
 func (p *pingPongService) Run(peer *p2p.Peer, rw p2p.MsgReadWriter, netType byte) error {
-	log := p.log.New("peer.id", peer.ID())
 
 	errC := make(chan error)
 	go func() {
@@ -172,7 +166,7 @@ func (p *pingPongService) Run(peer *p2p.Peer, rw p2p.MsgReadWriter, netType byte
 				errC <- err
 				return
 			}
-			log.Info("received message", "msg.code", msg.Code, "msg.payload", string(payload))
+			log.Infof("received message, msg.code=%v, msg.payload=%v", msg.Code, string(payload))
 			atomic.AddInt64(&p.received, 1)
 			if msg.Code == pingMsgCode {
 				log.Info("sending pong")
