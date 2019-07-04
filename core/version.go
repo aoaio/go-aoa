@@ -1,3 +1,3 @@
 package core
 
-var aoaVersion = "0.2.5"
+var aoaVersion = "0.2.6"
