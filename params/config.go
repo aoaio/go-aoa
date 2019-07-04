@@ -49,7 +49,7 @@ var (
 		ByzantiumBlockReward: big.NewInt(2e+18),
 		MaxElectDelegate:     big.NewInt(101),
 		BlockInterval:        big.NewInt(10),
-		AresBlock:            big.NewInt(0),
+		AresBlock:            big.NewInt(4000),
 		EpiphronBlock:        big.NewInt(20000),
 	}
 
