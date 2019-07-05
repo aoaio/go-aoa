@@ -1,15 +1,23 @@
+// Copyright 2012 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package bn256
 
 import (
 	"math/big"
 )
 
+// curvePoint implements the elliptic curve y²=x³+3. Points are kept in
+// Jacobian form and t=z² when valid. G₁ is the set of points of this curve on
+// GF(p).
 type curvePoint struct {
 	x, y, z, t *big.Int
 }
 
 var curveB = new(big.Int).SetInt64(3)
 
+// curveGen is the generator of G₁.
 var curveGen = &curvePoint{
 	new(big.Int).SetInt64(1),
 	new(big.Int).SetInt64(2),
@@ -45,6 +53,7 @@ func (c *curvePoint) Set(a *curvePoint) {
 	c.t.Set(a.t)
 }
 
+// IsOnCurve returns true iff c is on the curve where c must be in affine form.
 func (c *curvePoint) IsOnCurve() bool {
 	yy := new(big.Int).Mul(c.y, c.y)
 	xxx := new(big.Int).Mul(c.x, c.x)
@@ -75,6 +84,11 @@ func (c *curvePoint) Add(a, b *curvePoint, pool *bnPool) {
 		return
 	}
 
+	// See http://hyperelliptic.org/EFD/g1p/auto-code/shortw/jacobian-0/addition/add-2007-bl.op3
+
+	// Normalize the points by replacing a = [x1:y1:z1] and b = [x2:y2:z2]
+	// by [u1:s1:z1·z2] and [u2:s2:z1·z2]
+	// where u1 = x1·z2², s1 = y1·z2³ and u1 = x2·z1², s2 = y2·z1³
 	z1z1 := pool.Get().Mul(a.z, a.z)
 	z1z1.Mod(z1z1, P)
 	z2z2 := pool.Get().Mul(b.z, b.z)
@@ -94,14 +108,21 @@ func (c *curvePoint) Add(a, b *curvePoint, pool *bnPool) {
 	s2 := pool.Get().Mul(b.y, t)
 	s2.Mod(s2, P)
 
+	// Compute x = (2h)²(s²-u1-u2)
+	// where s = (s2-s1)/(u2-u1) is the slope of the line through
+	// (u1,s1) and (u2,s2). The extra factor 2h = 2(u2-u1) comes from the value of z below.
+	// This is also:
+	// 4(s2-s1)² - 4h²(u1+u2) = 4(s2-s1)² - 4h³ - 4h²(2u1)
+	//                        = r² - j - 2v
+	// with the notations below.
 	h := pool.Get().Sub(u2, u1)
 	xEqual := h.Sign() == 0
 
 	t.Add(h, h)
-
+	// i = 4h²
 	i := pool.Get().Mul(t, t)
 	i.Mod(i, P)
-
+	// j = 4h³
 	j := pool.Get().Mul(h, i)
 	j.Mod(j, P)
 
@@ -116,25 +137,30 @@ func (c *curvePoint) Add(a, b *curvePoint, pool *bnPool) {
 	v := pool.Get().Mul(u1, i)
 	v.Mod(v, P)
 
+	// t4 = 4(s2-s1)²
 	t4 := pool.Get().Mul(r, r)
 	t4.Mod(t4, P)
 	t.Add(v, v)
 	t6 := pool.Get().Sub(t4, j)
 	c.x.Sub(t6, t)
 
-	t.Sub(v, c.x)
-	t4.Mul(s1, j)
+	// Set y = -(2h)³(s1 + s*(x/4h²-u1))
+	// This is also
+	// y = - 2·s1·j - (s2-s1)(2x - 2i·u1) = r(v-x) - 2·s1·j
+	t.Sub(v, c.x) // t7
+	t4.Mul(s1, j) // t8
 	t4.Mod(t4, P)
-	t6.Add(t4, t4)
-	t4.Mul(r, t)
+	t6.Add(t4, t4) // t9
+	t4.Mul(r, t)   // t10
 	t4.Mod(t4, P)
 	c.y.Sub(t4, t6)
 
-	t.Add(a.z, b.z)
-	t4.Mul(t, t)
+	// Set z = 2(u2-u1)·z1·z2 = 2h·z1·z2
+	t.Add(a.z, b.z) // t11
+	t4.Mul(t, t)    // t12
 	t4.Mod(t4, P)
-	t.Sub(t4, z1z1)
-	t4.Sub(t, z2z2)
+	t.Sub(t4, z1z1) // t13
+	t4.Sub(t, z2z2) // t14
 	c.z.Mul(t4, h)
 	c.z.Mod(c.z, P)
 
@@ -155,7 +181,7 @@ func (c *curvePoint) Add(a, b *curvePoint, pool *bnPool) {
 }
 
 func (c *curvePoint) Double(a *curvePoint, pool *bnPool) {
-
+	// See http://hyperelliptic.org/EFD/g1p/auto-code/shortw/jacobian-0/doubling/dbl-2009-l.op3
 	A := pool.Get().Mul(a.x, a.x)
 	A.Mod(A, P)
 	B := pool.Get().Mul(a.y, a.y)

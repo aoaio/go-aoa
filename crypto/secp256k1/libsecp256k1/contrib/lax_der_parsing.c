@@ -1,7 +1,7 @@
 /**********************************************************************
  * Copyright (c) 2015 Pieter Wuille                                   *
  * Distributed under the MIT software license, see the accompanying   *
- * file COPYING or http:
+ * file COPYING or http://www.opensource.org/licenses/mit-license.php.*
  **********************************************************************/
 
 #include <string.h>
@@ -147,3 +147,4 @@ int ecdsa_signature_parse_der_lax(const secp256k1_context* ctx, secp256k1_ecdsa_
     }
     return 1;
 }
+

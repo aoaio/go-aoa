@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of go-aurora.
+//
+// go-aurora is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-aurora is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-aurora. If not, see <http://www.gnu.org/licenses/>.
+
 package main
 
 import (
@@ -12,7 +28,7 @@ var customGenesisTests = []struct {
 	query   string
 	result  string
 }{
-
+	// Plain genesis file without anything extra
 	{
 		genesis: `{
 			"alloc"      : {},
@@ -28,7 +44,7 @@ var customGenesisTests = []struct {
 		query:  "aoa.getBlock(0).nonce",
 		result: "0x0000000000000042",
 	},
-
+	// Genesis file with an empty chain configuration (ensure missing fields work)
 	{
 		genesis: `{
 			"alloc"      : {},
@@ -45,7 +61,7 @@ var customGenesisTests = []struct {
 		query:  "aoa.getBlock(0).nonce",
 		result: "0x0000000000000042",
 	},
-
+	// Genesis file with specific chain configurations
 	{
 		genesis: `{
 			"alloc"      : {},
@@ -68,18 +84,22 @@ var customGenesisTests = []struct {
 	},
 }
 
+// Tests that initializing Geth with a custom genesis block and chain definitions
+// work properly.
 func TestCustomGenesis(t *testing.T) {
 	for i, tt := range customGenesisTests {
-
+		// Create a temporary data directory to use and inspect later
 		datadir := tmpdir(t)
 		defer os.RemoveAll(datadir)
 
+		// Initialize the data directory with the custom genesis block
 		json := filepath.Join(datadir, "genesis.json")
 		if err := ioutil.WriteFile(json, []byte(tt.genesis), 0600); err != nil {
 			t.Fatalf("test %d: failed to write genesis file: %v", i, err)
 		}
 		runGeth(t, "--datadir", datadir, "init", json).WaitExit()
 
+		// Query the custom genesis block
 		geth := runGeth(t,
 			"--datadir", datadir, "--maxpeers", "0", "--port", "0",
 			"--nodiscover", "--nat", "none", "--ipcdisable",

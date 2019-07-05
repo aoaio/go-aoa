@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package core
 
 import (
@@ -7,27 +23,28 @@ import (
 
 	"encoding/json"
 	"fmt"
-	"github.com/Aurorachain/go-Aurora/common"
+	"github.com/Aurorachain/go-aoa/common"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/Aurorachain/go-Aurora/aoadb"
-	"github.com/Aurorachain/go-Aurora/common/hexutil"
-	"github.com/Aurorachain/go-Aurora/core/types"
-	"github.com/Aurorachain/go-Aurora/params"
+	"github.com/Aurorachain/go-aoa/aoadb"
+	"github.com/Aurorachain/go-aoa/common/hexutil"
+	"github.com/Aurorachain/go-aoa/core/types"
+	"github.com/Aurorachain/go-aoa/params"
 	"io/ioutil"
 	"os"
-	"github.com/Aurorachain/go-Aurora/rlp"
+	"github.com/Aurorachain/go-aoa/rlp"
 	"strconv"
 )
 
 func TestDefaultGenesisBlock(t *testing.T) {
-	file, _ := os.Open("/Users/user/workspace/go-workspace/github-workspace/src/github.com/Aurorachain/go-Aurora/genesis.json")
-	data, _ := ioutil.ReadFile("/Users/user/workspace/go-workspace/github-workspace/src/github.com/Aurorachain/go-Aurora/genesis.json")
+	file, _ := os.Open("/Users/name/workspace/go-workspace/github-workspace/src/github.com/Aurorachain/go-aoa/genesis.json")
+	data, _ := ioutil.ReadFile("/Users/name/workspace/go-workspace/github-workspace/src/github.com/Aurorachain/go-aoa/genesis.json")
 	geneJson := string(data)
 	fmt.Println(geneJson)
 	var aa Genesis
 	json.Unmarshal([]byte(geneJson), &aa)
 	json.NewDecoder(file).Decode(&aa)
 
+	//aa.UnmarshalJSON(data)
 	genesis := DefaultGenesisBlock()
 
 	bytes, _ := genesis.MarshalJSON()
@@ -42,9 +59,10 @@ func TestDefaultGenesisBlock(t *testing.T) {
 		t.Errorf("wrong testnet genesis hash, got %v, want %v", block.Hash(), params.TestnetGenesisHash)
 	}
 
+	// ExtraData hex to string
 	decode := hexutil.MustDecode("0x7869786978697869")
 	fmt.Println(string(decode))
-
+	// string to hex
 	encodeResult := hexutil.Encode([]byte(string(decode)))
 	fmt.Println(encodeResult)
 }
@@ -53,6 +71,8 @@ func TestDefaultGenesisBlock2(t *testing.T) {
 	genesis := DefaultGenesisBlock()
 	block, _, _ := genesis.ToBlock()
 	fmt.Println("main genesisBlockHash = ",block.Hash().Hex())
+
+
 
 	genesis2 := DefaultTestnetGenesisBlock()
 	block2, _, _ := genesis2.ToBlock()
@@ -71,6 +91,8 @@ type testGenesis struct {
 	Alloc      GenesisAlloc        `json:"alloc"      gencodec:"required"`
 	Agents     types.StoreData     `json:"agents,omitempty" gencodec:"required"`
 
+	// These fields are used for consensus tests. Please don't use them
+	// in actual genesis blocks.
 	Number     uint64      `json:"number"`
 	GasUsed    uint64      `json:"gasUsed"`
 	ParentHash common.Hash `json:"parentHash"`
@@ -111,7 +133,7 @@ func TestSetupGenesis(t *testing.T) {
 				return SetupGenesisBlock(db, new(Genesis))
 			},
 			wantErr:    errGenesisNoConfig,
-
+			//wantConfig: params.AllEthashProtocolChanges,
 		},
 		{
 			name: "no block in DB, genesis == nil",
@@ -163,7 +185,7 @@ func TestSetupGenesis(t *testing.T) {
 	for _, test := range tests {
 		db, _ := aoadb.NewMemDatabase()
 		config, hash, _, err := test.fn(db)
-
+		// Check the return values.
 		if !reflect.DeepEqual(err, test.wantErr) {
 			spew := spew.ConfigState{DisablePointerAddresses: true, DisableCapacities: true}
 			t.Errorf("%s: returned error %#v, want %#v", test.name, spew.NewFormatter(err), spew.NewFormatter(test.wantErr))
@@ -174,7 +196,7 @@ func TestSetupGenesis(t *testing.T) {
 		if hash != test.wantHash {
 			t.Errorf("%s: returned hash %s, want %s", test.name, hash.Hex(), test.wantHash.Hex())
 		} else if err == nil {
-
+			// Check database content.
 			stored := GetBlock(db, test.wantHash, 0)
 			if stored.Hash() != test.wantHash {
 				t.Errorf("%s: block in DB has hash %s, want %s", test.name, stored.Hash(), test.wantHash)
@@ -187,7 +209,8 @@ func TestDefaultTestnetGenesisBlock(t *testing.T) {
 	testnetGenesisBlock := DefaultTestnetGenesisBlock()
 	block, _, _ := testnetGenesisBlock.ToBlock()
 	fmt.Println(block.Hash().Hex())
-
+	//decode := hexutil.MustDecode("0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa")
+	//fmt.Println(string(bitutil.CompressBytes(decode)))
 }
 
 func TestDefaultGenesisBlock3(t *testing.T) {
@@ -208,12 +231,12 @@ func TestDefaultRinkebyGenesisBlock(t *testing.T) {
 func TestGenesisAgents(t *testing.T) {
 	var list GenesisAgents
 	candidateList := []types.Candidate{
-		{"0x71af77518da8ee1e152068ea4727d1041d71b813", uint64(1), "node1-1", 1492009146},
-		{"0xa51bac4fe71640157f29317c2fe233c26b71c6c8", uint64(1), "node1-2", 1492009146},
-		{"0xb0b81949b3b6d6ff926336d6227cec04ceca88b2", uint64(1), "node1-3", 1492009146},
-		{"0x4d8bfcdbc0192e3a2e189ed133ee4e98e4e381f8", uint64(1), "node2-1", 1492009146},
-		{"0xe92c157278abafa68e3547d4d5bd3ed4a5afccb3", uint64(1), "node2-2", 1492009146},
-		{"0x5ac2ff101f11ae3c2b7093e25f5300018252c2a3", uint64(1), "node2-3", 1492009146},
+		{"0x71af77518da8ee1e152068ea4727d1041d71b813", uint64(1), "node1-1", 1492009146}, // 172.16.134.100
+		{"0xa51bac4fe71640157f29317c2fe233c26b71c6c8", uint64(1), "node1-2", 1492009146}, // 172.16.134.100
+		{"0xb0b81949b3b6d6ff926336d6227cec04ceca88b2", uint64(1), "node1-3", 1492009146}, // 172.16.134.100
+		{"0x4d8bfcdbc0192e3a2e189ed133ee4e98e4e381f8", uint64(1), "node2-1", 1492009146}, // 172.16.134.101
+		{"0xe92c157278abafa68e3547d4d5bd3ed4a5afccb3", uint64(1), "node2-2", 1492009146}, // 172.16.134.101
+		{"0x5ac2ff101f11ae3c2b7093e25f5300018252c2a3", uint64(1), "node2-3", 1492009146}, // 172.16.134.101
 	}
 	list = append(list,candidateList...)
 
@@ -222,6 +245,7 @@ func TestGenesisAgents(t *testing.T) {
 		t.Fatal(err)
 	}
 	result := strconv.QuoteToASCII(string(data))
+
 
 	list2 := decodeGenesisAgents(result)
 	fmt.Println("result = ", result)

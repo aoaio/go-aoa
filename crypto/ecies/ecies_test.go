@@ -1,3 +1,32 @@
+// Copyright (c) 2013 Kyle Isom <kyle@tyrfingr.is>
+// Copyright (c) 2012 The Go Authors. All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met:
+//
+//    * Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+//    * Redistributions in binary form must reproduce the above
+// copyright notice, this list of conditions and the following disclaimer
+// in the documentation and/or other materials provided with the
+// distribution.
+//    * Neither the name of Google Inc. nor the names of its
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 package ecies
 
 import (
@@ -11,7 +40,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/Aurorachain/go-Aurora/crypto"
+	"github.com/Aurorachain/go-aoa/crypto"
 )
 
 var dumpEnc bool
@@ -22,6 +51,7 @@ func init() {
 	dumpEnc = *flDump
 }
 
+// Ensure the KDF generates appropriately sized keys.
 func TestKDF(t *testing.T) {
 	msg := []byte("Hello, world")
 	h := sha256.New()
@@ -39,12 +69,15 @@ func TestKDF(t *testing.T) {
 
 var ErrBadSharedKeys = fmt.Errorf("ecies: shared keys don't match")
 
+// cmpParams compares a set of ECIES parameters. We assume, as per the
+// docs, that AES is the only supported symmetric encryption algorithm.
 func cmpParams(p1, p2 *ECIESParams) bool {
 	return p1.hashAlgo == p2.hashAlgo &&
 		p1.KeyLen == p2.KeyLen &&
 		p1.BlockSize == p2.BlockSize
 }
 
+// cmpPublic returns true if the two public keys represent the same pojnt.
 func cmpPublic(pub1, pub2 PublicKey) bool {
 	if pub1.X == nil || pub1.Y == nil {
 		fmt.Println(ErrInvalidPublicKey.Error())
@@ -60,6 +93,7 @@ func cmpPublic(pub1, pub2 PublicKey) bool {
 	return bytes.Equal(pub1Out, pub2Out)
 }
 
+// cmpPrivate returns true if the two private keys are the same.
 func cmpPrivate(prv1, prv2 *PrivateKey) bool {
 	if prv1 == nil || prv1.D == nil {
 		return false
@@ -72,6 +106,7 @@ func cmpPrivate(prv1, prv2 *PrivateKey) bool {
 	}
 }
 
+// Validate the ECDH component.
 func TestSharedKey(t *testing.T) {
 	prv1, err := GenerateKey(rand.Reader, DefaultCurve, nil)
 	if err != nil {
@@ -105,7 +140,7 @@ func TestSharedKey(t *testing.T) {
 }
 
 func TestSharedKeyPadding(t *testing.T) {
-
+	// sanity checks
 	prv0 := hexKey("1adf5c18167d96a1f9a0b1ef63be8aa27eaf6032c233b2b38f7850cf5b859fd9")
 	prv1 := hexKey("0097a076fc7fcd9208240668e31c9abee952cbb6e375d1b8febc7499d6e16f1a")
 	x0, _ := new(big.Int).SetString("1a8ed022ff7aec59dc1b440446bdda5ff6bcb3509a8b109077282b361efffbd8", 16)
@@ -126,6 +161,7 @@ func TestSharedKeyPadding(t *testing.T) {
 		t.Errorf("mismatched prv1.Y:\nhave: %x\nwant: %x\n", prv1.PublicKey.Y.Bytes(), y1.Bytes())
 	}
 
+	// test shared secret generation
 	sk1, err := prv0.GenerateShared(&prv1.PublicKey, 16, 16)
 	if err != nil {
 		fmt.Println(err.Error())
@@ -141,6 +177,8 @@ func TestSharedKeyPadding(t *testing.T) {
 	}
 }
 
+// Verify that the key generation code fails when too much key data is
+// requested.
 func TestTooBigSharedKey(t *testing.T) {
 	prv1, err := GenerateKey(rand.Reader, DefaultCurve, nil)
 	if err != nil {
@@ -167,6 +205,7 @@ func TestTooBigSharedKey(t *testing.T) {
 	}
 }
 
+// Benchmark the generation of P256 keys.
 func BenchmarkGenerateKeyP256(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		if _, err := GenerateKey(rand.Reader, elliptic.P256(), nil); err != nil {
@@ -176,6 +215,7 @@ func BenchmarkGenerateKeyP256(b *testing.B) {
 	}
 }
 
+// Benchmark the generation of P256 shared keys.
 func BenchmarkGenSharedKeyP256(b *testing.B) {
 	prv, err := GenerateKey(rand.Reader, elliptic.P256(), nil)
 	if err != nil {
@@ -192,6 +232,7 @@ func BenchmarkGenSharedKeyP256(b *testing.B) {
 	}
 }
 
+// Benchmark the generation of S256 shared keys.
 func BenchmarkGenSharedKeyS256(b *testing.B) {
 	prv, err := GenerateKey(rand.Reader, crypto.S256(), nil)
 	if err != nil {
@@ -208,6 +249,7 @@ func BenchmarkGenSharedKeyS256(b *testing.B) {
 	}
 }
 
+// Verify that an encrypted message can be successfully decrypted.
 func TestEncryptDecrypt(t *testing.T) {
 	prv1, err := GenerateKey(rand.Reader, DefaultCurve, nil)
 	if err != nil {
@@ -258,6 +300,7 @@ func TestDecryptShared2(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Check that decrypting with correct shared data works.
 	pt, err := prv.Decrypt(rand.Reader, ct, nil, shared2)
 	if err != nil {
 		t.Fatal(err)
@@ -266,6 +309,7 @@ func TestDecryptShared2(t *testing.T) {
 		t.Fatal("ecies: plaintext doesn't match message")
 	}
 
+	// Decrypting without shared data or incorrect shared data fails.
 	if _, err = prv.Decrypt(rand.Reader, ct, nil, nil); err == nil {
 		t.Fatal("ecies: decrypting without shared data didn't fail")
 	}
@@ -298,6 +342,9 @@ var testCases = []testCase{
 	},
 }
 
+// Test parameter selection for each curve, and that P224 fails automatic
+// parameter selection (see README for a discussion of P224). Ensures that
+// selecting a set of parameters automatically for the given curve works.
 func TestParamSelection(t *testing.T) {
 	for _, c := range testCases {
 		testParamSelection(t, c)
@@ -355,6 +402,8 @@ func testParamSelection(t *testing.T, c testCase) {
 
 }
 
+// Ensure that the basic public key validation in the decryption operation
+// works.
 func TestBasicKeyValidation(t *testing.T) {
 	badBytes := []byte{0, 1, 5, 6, 7, 8, 9}
 
@@ -404,6 +453,8 @@ func TestBox(t *testing.T) {
 	}
 }
 
+// Verify GenerateShared against static values - useful when
+// debugging changes in underlying libs
 func TestSharedKeyStatic(t *testing.T) {
 	prv1 := hexKey("7ebbc6a8358bc76dd73ebc557056702c8cfc34e5cfcd90eb83af0347575fd2ad")
 	prv2 := hexKey("6a3d6396903245bba5837752b9e0348874e72db0c4e11e9c485a81b4ea4353b9")

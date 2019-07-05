@@ -1,13 +1,32 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package abi
 
 import (
 	"fmt"
 	"strings"
 
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/crypto"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/crypto"
 )
 
+// Event is an event potentially triggered by the EVM's LOG mechanism. The Event
+// holds type information (inputs) about the yielded output. Anonymous events
+// don't get the signature canonical representation as the first LOG topic.
 type Event struct {
 	Name      string
 	Anonymous bool
@@ -25,6 +44,8 @@ func (event Event) String() string {
 	return fmt.Sprintf("event %v(%v)", event.Name, strings.Join(inputs, ", "))
 }
 
+// Id returns the canonical representation of the event's signature used by the
+// abi definition to identify event names and walletType.
 func (e Event) Id() common.Hash {
 	types := make([]string, len(e.Inputs))
 	i := 0

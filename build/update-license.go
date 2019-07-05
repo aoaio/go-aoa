@@ -1,5 +1,22 @@
 // +build none
 
+/*
+This command generates GPL license headers on top of all source files.
+You can run it once per month, before cutting a release or just
+whenever you feel like it.
+
+	go run update-license.go
+
+All authors (people who have contributed code) are listed in the
+AUTHORS file. The author names are mapped and deduplicated using the
+.mailmap file. You can use .mailmap to set the canonical name and
+address for each author. See git-shortlog(1) for an explanation of the
+.mailmap format.
+
+Please review the resulting diff to check whether the correct
+copyright assignments are performed.
+*/
+
 package main
 
 import (
@@ -22,13 +39,14 @@ import (
 )
 
 var (
-
+	// only files with these extensions will be considered
 	extensions = []string{".go", ".js", ".qml"}
 
+	// paths with any of these prefixes will be skipped
 	skipPrefixes = []string{
-
+		// boring stuff
 		"vendor/", "tests/testdata/", "build/",
-
+		// don't relicense vendored sources
 		"cmd/internal/browser",
 		"consensus/ethash/xor.go",
 		"crypto/bn256/",
@@ -37,20 +55,41 @@ var (
 		"crypto/sha3/",
 		"internal/jsre/deps",
 		"log/",
-
+		// don't license generated files
 		"contracts/chequebook/contract/",
 		"contracts/ens/contract/",
 		"contracts/release/contract.go",
 	}
 
+	// paths with this prefix are licensed as GPL. all other files are LGPL.
 	gplPrefixes = []string{"cmd/"}
 
+	// this regexp must match the entire license comment at the
+	// beginning of each file.
 	licenseCommentRE = regexp.MustCompile(`^//\s*(Copyright|This file is part of).*?\n(?://.*?\n)*\n*`)
 
-	authorsFileHeader = "# This is the official list of go-aurora authors for copyright purposes.\n\n"
+	// this text appears at the start of AUTHORS
+	authorsFileHeader = "# This is the official list of go-aoa authors for copyright purposes.\n\n"
 )
 
+// this template generates the license comment.
+// its input is an info structure.
 var licenseT = template.Must(template.New("").Parse(`
+// Copyright {{.Year}} The go-aurora Authors
+// This file is part of {{.Whole false}}.
+//
+// {{.Whole true}} is free software: you can redistribute it and/or modify
+// it under the terms of the GNU {{.License}} as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// {{.Whole true}} is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU {{.License}} for more details.
+//
+// You should have received a copy of the GNU {{.License}}
+// along with {{.Whole false}}. If not, see <http://www.gnu.org/licenses/>.
 
 `[1:]))
 
@@ -109,7 +148,8 @@ func main() {
 		close(filec)
 	}()
 	for i := runtime.NumCPU(); i >= 0; i-- {
-
+		// getting file info is slow and needs to be parallel.
+		// it traverses git history for each file.
 		wg.Add(1)
 		go getInfo(filec, infoc, &wg)
 	}
@@ -185,7 +225,8 @@ func readAuthors() []string {
 			authors = append(authors, string(a))
 		}
 	}
-
+	// Retranslate existing authors through .mailmap.
+	// This should catch email address changes.
 	authors = mailmapLookup(authors)
 	return authors
 }
@@ -209,15 +250,18 @@ func mailmapLookup(authors []string) []string {
 
 func writeAuthors(files []string) {
 	merge := make(map[string]bool)
-
+	// Add authors that Git reports as contributorxs.
+	// This is the primary source of author information.
 	for _, a := range gitAuthors(files) {
 		merge[a] = true
 	}
-
+	// Add existing authors from the file. This should ensure that we
+	// never lose authors, even if Git stops listing them. We can also
+	// add authors manually this way.
 	for _, a := range readAuthors() {
 		merge[a] = true
 	}
-
+	// Write sorted list of authors back to the file.
 	var result []string
 	for a := range merge {
 		result = append(result, a)
@@ -275,6 +319,7 @@ func isGenerated(file string) bool {
 	return false
 }
 
+// fileInfo finds the lowest year in which the given file was committed.
 func fileInfo(file string) (*info, error) {
 	info := &info{file: file, Year: int64(time.Now().Year())}
 	cmd := exec.Command("git", "log", "--follow", "--find-renames=80", "--find-copies=80", "--pretty=format:%ai", "--", file)
@@ -309,7 +354,7 @@ func writeLicense(info *info) {
 	if err != nil {
 		log.Fatalf("error reading %s: %v\n", info.file, err)
 	}
-
+	// Construct new file content.
 	buf := new(bytes.Buffer)
 	licenseT.Execute(buf, info)
 	if m := licenseCommentRE.FindIndex(content); m != nil && m[0] == 0 {
@@ -318,7 +363,7 @@ func writeLicense(info *info) {
 	} else {
 		buf.Write(content)
 	}
-
+	// Write it to the file.
 	if bytes.Equal(content, buf.Bytes()) {
 		fmt.Println("skipping (no changes)", info.file)
 		return

@@ -1,3 +1,20 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
+// Package compiler wraps the Solidity compiler executable (solc).
 package compiler
 
 import (
@@ -31,11 +48,13 @@ type ContractInfo struct {
 	Metadata        string      `json:"metadata"`
 }
 
+// Solidity contains information about the solidity compiler.
 type Solidity struct {
 	Path, Version, FullVersion string
 	Major, Minor, Patch        int
 }
 
+// --combined-output format
 type solcOutput struct {
 	Contracts map[string]struct {
 		Bin, Abi, Devdoc, Userdoc, Metadata string
@@ -46,8 +65,8 @@ type solcOutput struct {
 func (s *Solidity) makeArgs() []string {
 	p := []string{
 		"--combined-json", "bin,abi,userdoc,devdoc",
-		"--add-std",
-		"--optimize",
+		"--add-std",  // include standard lib contracts
+		"--optimize", // code optimizer switched on
 	}
 	if s.Major > 0 || s.Minor > 4 || s.Patch > 6 {
 		p[1] += ",metadata"
@@ -55,6 +74,7 @@ func (s *Solidity) makeArgs() []string {
 	return p
 }
 
+// SolidityVersion runs solc and parses its version output.
 func SolidityVersion(solc string) (*Solidity, error) {
 	if solc == "" {
 		solc = "solc"
@@ -83,6 +103,7 @@ func SolidityVersion(solc string) (*Solidity, error) {
 	return s, nil
 }
 
+// CompileSolidityString builds and returns all the contracts contained within a source string.
 func CompileSolidityString(solc, source string) (map[string]*Contract, error) {
 	if len(source) == 0 {
 		return nil, errors.New("solc: empty source string")
@@ -97,6 +118,7 @@ func CompileSolidityString(solc, source string) (map[string]*Contract, error) {
 	return s.run(cmd, source)
 }
 
+// CompileSolidity compiles all given Solidity source files.
 func CompileSolidity(solc string, sourcefiles ...string) (map[string]*Contract, error) {
 	if len(sourcefiles) == 0 {
 		return nil, errors.New("solc: no source files")
@@ -126,9 +148,10 @@ func (s *Solidity) run(cmd *exec.Cmd, source string) (map[string]*Contract, erro
 		return nil, err
 	}
 
+	// Compilation succeeded, assemble and return the contracts.
 	contracts := make(map[string]*Contract)
 	for name, info := range output.Contracts {
-
+		// Parse the individual compilation results.
 		var abi interface{}
 		if err := json.Unmarshal([]byte(info.Abi), &abi); err != nil {
 			return nil, fmt.Errorf("solc: error reading abi definition (%v)", err)

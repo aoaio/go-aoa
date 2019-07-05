@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package hexutil
 
 import (
@@ -44,7 +60,7 @@ func referenceBytes(s string) []byte {
 var errJSONEOF = errors.New("unexpected end of JSON input")
 
 var unmarshalBytesTests = []unmarshalTest{
-
+	// invalid encoding
 	{input: "", wantErr: errJSONEOF},
 	{input: "null", wantErr: errNonString(bytesT)},
 	{input: "10", wantErr: errNonString(bytesT)},
@@ -53,6 +69,7 @@ var unmarshalBytesTests = []unmarshalTest{
 	{input: `"0xxx"`, wantErr: wrapTypeError(ErrSyntax, bytesT)},
 	{input: `"0x01zz01"`, wantErr: wrapTypeError(ErrSyntax, bytesT)},
 
+	// valid encoding
 	{input: `""`, want: referenceBytes("")},
 	{input: `"0x"`, want: referenceBytes("")},
 	{input: `"0x02"`, want: referenceBytes("02")},
@@ -108,7 +125,7 @@ func TestMarshalBytes(t *testing.T) {
 }
 
 var unmarshalBigTests = []unmarshalTest{
-
+	// invalid encoding
 	{input: "", wantErr: errJSONEOF},
 	{input: "null", wantErr: errNonString(bigT)},
 	{input: "10", wantErr: errNonString(bigT)},
@@ -122,6 +139,7 @@ var unmarshalBigTests = []unmarshalTest{
 		wantErr: wrapTypeError(ErrBig256Range, bigT),
 	},
 
+	// valid encoding
 	{input: `""`, want: big.NewInt(0)},
 	{input: `"0x0"`, want: big.NewInt(0)},
 	{input: `"0x2"`, want: big.NewInt(0x2)},
@@ -188,7 +206,7 @@ func TestMarshalBig(t *testing.T) {
 }
 
 var unmarshalUint64Tests = []unmarshalTest{
-
+	// invalid encoding
 	{input: "", wantErr: errJSONEOF},
 	{input: "null", wantErr: errNonString(uint64T)},
 	{input: "10", wantErr: errNonString(uint64T)},
@@ -199,6 +217,7 @@ var unmarshalUint64Tests = []unmarshalTest{
 	{input: `"0xx"`, wantErr: wrapTypeError(ErrSyntax, uint64T)},
 	{input: `"0x1zz01"`, wantErr: wrapTypeError(ErrSyntax, uint64T)},
 
+	// valid encoding
 	{input: `""`, want: uint64(0)},
 	{input: `"0x0"`, want: uint64(0)},
 	{input: `"0x2"`, want: uint64(0x2)},
@@ -270,13 +289,14 @@ func TestMarshalUint(t *testing.T) {
 }
 
 var (
-
+	// These are variables (not constants) to avoid constant overflow
+	// checks in the compiler on 32bit platforms.
 	maxUint33bits = uint64(^uint32(0)) + 1
 	maxUint64bits = ^uint64(0)
 )
 
 var unmarshalUintTests = []unmarshalTest{
-
+	// invalid encoding
 	{input: "", wantErr: errJSONEOF},
 	{input: "null", wantErr: errNonString(uintT)},
 	{input: "10", wantErr: errNonString(uintT)},
@@ -288,6 +308,7 @@ var unmarshalUintTests = []unmarshalTest{
 	{input: `"0xx"`, wantErr: wrapTypeError(ErrSyntax, uintT)},
 	{input: `"0x1zz01"`, wantErr: wrapTypeError(ErrSyntax, uintT)},
 
+	// valid encoding
 	{input: `""`, want: uint(0)},
 	{input: `"0x0"`, want: uint(0)},
 	{input: `"0x2"`, want: uint(0x2)},
@@ -327,10 +348,10 @@ func TestUnmarshalFixedUnprefixedText(t *testing.T) {
 		{input: "2", wantErr: ErrOddLength},
 		{input: "4444", wantErr: errors.New("hex string has length 4, want 8 for x")},
 		{input: "4444", wantErr: errors.New("hex string has length 4, want 8 for x")},
-
+		// check that output is not modified for partially correct input
 		{input: "444444gg", wantErr: ErrSyntax, want: []byte{0, 0, 0, 0}},
 		{input: "0x444444gg", wantErr: ErrSyntax, want: []byte{0, 0, 0, 0}},
-
+		// valid inputs
 		{input: "44444444", want: []byte{0x44, 0x44, 0x44, 0x44}},
 		{input: "0x44444444", want: []byte{0x44, 0x44, 0x44, 0x44}},
 	}

@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package abi
 
 import (
@@ -11,8 +27,8 @@ import (
 
 	"reflect"
 
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/crypto"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/crypto"
 )
 
 const jsondata = `
@@ -59,6 +75,7 @@ func TestReader(t *testing.T) {
 		t.Error(err)
 	}
 
+	// deep equal fails for some reason
 	for name, expM := range exp.Methods {
 		gotM, exist := abi.Methods[name]
 		if !exist {
@@ -216,7 +233,8 @@ func ExampleJSON() {
 	}
 
 	fmt.Printf("%x\n", out)
-
+	// Output:
+	// 1f2c40920000000000000000000000000000000000000000000000000000000000000001
 }
 
 func TestInputVariableInputLength(t *testing.T) {
@@ -231,6 +249,7 @@ func TestInputVariableInputLength(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// test one string
 	strin := "hello world"
 	strpack, err := abi.Pack("strOne", strin)
 	if err != nil {
@@ -244,20 +263,24 @@ func TestInputVariableInputLength(t *testing.T) {
 	value := common.RightPadBytes([]byte(strin), 32)
 	exp := append(offset, append(length, value...)...)
 
+	// ignore first 4 bytes of the output. This is the function identifier
 	strpack = strpack[4:]
 	if !bytes.Equal(strpack, exp) {
 		t.Errorf("expected %x, got %x\n", exp, strpack)
 	}
 
+	// test one bytes
 	btspack, err := abi.Pack("bytesOne", []byte(strin))
 	if err != nil {
 		t.Error(err)
 	}
+	// ignore first 4 bytes of the output. This is the function identifier
 	btspack = btspack[4:]
 	if !bytes.Equal(btspack, exp) {
 		t.Errorf("expected %x, got %x\n", exp, btspack)
 	}
 
+	//  test two strings
 	str1 := "hello"
 	str2 := "world"
 	str2pack, err := abi.Pack("strTwo", str1, str2)
@@ -281,11 +304,13 @@ func TestInputVariableInputLength(t *testing.T) {
 	exp2 = append(exp2, append(length1, value1...)...)
 	exp2 = append(exp2, append(length2, value2...)...)
 
+	// ignore first 4 bytes of the output. This is the function identifier
 	str2pack = str2pack[4:]
 	if !bytes.Equal(str2pack, exp2) {
 		t.Errorf("expected %x, got %x\n", exp, str2pack)
 	}
 
+	// test two strings, first > 32, second < 32
 	str1 = strings.Repeat("a", 33)
 	str2pack, err = abi.Pack("strTwo", str1, str2)
 	if err != nil {
@@ -303,11 +328,13 @@ func TestInputVariableInputLength(t *testing.T) {
 	exp2 = append(exp2, append(length1, value1...)...)
 	exp2 = append(exp2, append(length2, value2...)...)
 
+	// ignore first 4 bytes of the output. This is the function identifier
 	str2pack = str2pack[4:]
 	if !bytes.Equal(str2pack, exp2) {
 		t.Errorf("expected %x, got %x\n", exp, str2pack)
 	}
 
+	// test two strings, first > 32, second >32
 	str1 = strings.Repeat("a", 33)
 	str2 = strings.Repeat("a", 33)
 	str2pack, err = abi.Pack("strTwo", str1, str2)
@@ -331,6 +358,7 @@ func TestInputVariableInputLength(t *testing.T) {
 	exp2 = append(exp2, append(length1, value1...)...)
 	exp2 = append(exp2, append(length2, value2...)...)
 
+	// ignore first 4 bytes of the output. This is the function identifier
 	str2pack = str2pack[4:]
 	if !bytes.Equal(str2pack, exp2) {
 		t.Errorf("expected %x, got %x\n", exp, str2pack)
@@ -351,6 +379,7 @@ func TestInputFixedArrayAndVariableInputLength(t *testing.T) {
 		t.Error(err)
 	}
 
+	// test string, fixed array uint256[2]
 	strin := "hello world"
 	arrin := [2]*big.Int{big.NewInt(1), big.NewInt(2)}
 	fixedArrStrPack, err := abi.Pack("fixedArrStr", strin, arrin)
@@ -358,6 +387,7 @@ func TestInputFixedArrayAndVariableInputLength(t *testing.T) {
 		t.Error(err)
 	}
 
+	// generate expected output
 	offset := make([]byte, 32)
 	offset[31] = 96
 	length := make([]byte, 32)
@@ -369,11 +399,13 @@ func TestInputFixedArrayAndVariableInputLength(t *testing.T) {
 	exp = append(exp, arrinvalue2...)
 	exp = append(exp, append(length, strvalue...)...)
 
+	// ignore first 4 bytes of the output. This is the function identifier
 	fixedArrStrPack = fixedArrStrPack[4:]
 	if !bytes.Equal(fixedArrStrPack, exp) {
 		t.Errorf("expected %x, got %x\n", exp, fixedArrStrPack)
 	}
 
+	// test byte array, fixed array uint256[2]
 	bytesin := []byte(strin)
 	arrin = [2]*big.Int{big.NewInt(1), big.NewInt(2)}
 	fixedArrBytesPack, err := abi.Pack("fixedArrBytes", bytesin, arrin)
@@ -381,6 +413,7 @@ func TestInputFixedArrayAndVariableInputLength(t *testing.T) {
 		t.Error(err)
 	}
 
+	// generate expected output
 	offset = make([]byte, 32)
 	offset[31] = 96
 	length = make([]byte, 32)
@@ -392,11 +425,13 @@ func TestInputFixedArrayAndVariableInputLength(t *testing.T) {
 	exp = append(exp, arrinvalue2...)
 	exp = append(exp, append(length, strvalue...)...)
 
+	// ignore first 4 bytes of the output. This is the function identifier
 	fixedArrBytesPack = fixedArrBytesPack[4:]
 	if !bytes.Equal(fixedArrBytesPack, exp) {
 		t.Errorf("expected %x, got %x\n", exp, fixedArrBytesPack)
 	}
 
+	// test string, fixed array uint256[2], dynamic array uint256[]
 	strin = "hello world"
 	fixedarrin := [2]*big.Int{big.NewInt(1), big.NewInt(2)}
 	dynarrin := []*big.Int{big.NewInt(1), big.NewInt(2), big.NewInt(3)}
@@ -405,6 +440,7 @@ func TestInputFixedArrayAndVariableInputLength(t *testing.T) {
 		t.Error(err)
 	}
 
+	// generate expected output
 	stroffset := make([]byte, 32)
 	stroffset[31] = 128
 	strlength := make([]byte, 32)
@@ -428,11 +464,13 @@ func TestInputFixedArrayAndVariableInputLength(t *testing.T) {
 	dynarrarg = append(dynarrarg, dynarrinvalue3...)
 	exp = append(exp, dynarrarg...)
 
+	// ignore first 4 bytes of the output. This is the function identifier
 	mixedArrStrPack = mixedArrStrPack[4:]
 	if !bytes.Equal(mixedArrStrPack, exp) {
 		t.Errorf("expected %x, got %x\n", exp, mixedArrStrPack)
 	}
 
+	// test string, fixed array uint256[2], fixed array uint256[3]
 	strin = "hello world"
 	fixedarrin1 := [2]*big.Int{big.NewInt(1), big.NewInt(2)}
 	fixedarrin2 := [3]*big.Int{big.NewInt(1), big.NewInt(2), big.NewInt(3)}
@@ -441,6 +479,7 @@ func TestInputFixedArrayAndVariableInputLength(t *testing.T) {
 		t.Error(err)
 	}
 
+	// generate expected output
 	stroffset = make([]byte, 32)
 	stroffset[31] = 192
 	strlength = make([]byte, 32)
@@ -458,11 +497,13 @@ func TestInputFixedArrayAndVariableInputLength(t *testing.T) {
 	exp = append(exp, fixedarrin2value3...)
 	exp = append(exp, append(strlength, strvalue...)...)
 
+	// ignore first 4 bytes of the output. This is the function identifier
 	doubleFixedArrStrPack = doubleFixedArrStrPack[4:]
 	if !bytes.Equal(doubleFixedArrStrPack, exp) {
 		t.Errorf("expected %x, got %x\n", exp, doubleFixedArrStrPack)
 	}
 
+	// test string, fixed array uint256[2], dynamic array uint256[], fixed array uint256[3]
 	strin = "hello world"
 	fixedarrin1 = [2]*big.Int{big.NewInt(1), big.NewInt(2)}
 	dynarrin = []*big.Int{big.NewInt(1), big.NewInt(2)}
@@ -472,6 +513,7 @@ func TestInputFixedArrayAndVariableInputLength(t *testing.T) {
 		t.Error(err)
 	}
 
+	// generate expected output
 	stroffset = make([]byte, 32)
 	stroffset[31] = 224
 	strlength = make([]byte, 32)
@@ -498,6 +540,7 @@ func TestInputFixedArrayAndVariableInputLength(t *testing.T) {
 	dynarrarg = append(dynarrarg, dynarrinvalue2...)
 	exp = append(exp, dynarrarg...)
 
+	// ignore first 4 bytes of the output. This is the function identifier
 	multipleMixedArrStrPack = multipleMixedArrStrPack[4:]
 	if !bytes.Equal(multipleMixedArrStrPack, exp) {
 		t.Errorf("expected %x, got %x\n", exp, multipleMixedArrStrPack)
@@ -575,6 +618,15 @@ func TestBareEvents(t *testing.T) {
 	}
 }
 
+// TestUnpackEvent is based on this contract:
+//    contract T {
+//      event received(address sender, uint amount, bytes memo);
+//      function receive(bytes memo) external payable {
+//        received(msg.sender, msg.value, memo);
+//      }
+//    }
+// When receive("X") is called with sender 0x00... and value 1, it produces this tx receipt:
+//   receipt{status=1 cgas=23949 bloom=00000000004000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000040200000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 logs=[log: b6818c8064f645cd82d99b59a1a267d6d61117ef [75fd880d39c1daf53b6547ab6cb59451fc6452d27caa90e5b6649dd8293b9eed] 000000000000000000000000376c47978271565f56deb45495afa69e59c16ab200000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000000158 9ae378b6d4409eada347a5dc0c180f186cb62dc68fcc0f043425eb917335aa28 0 95d429d309bb9d753954195fe2d69bd140b4ae731b9b5b605c34323de162cf00 0]}
 func TestUnpackEvent(t *testing.T) {
 	const abiJSON = `[{"constant":false,"inputs":[{"name":"memo","type":"bytes"}],"name":"receive","outputs":[],"payable":true,"stateMutability":"payable","type":"function"},{"anonymous":false,"inputs":[{"indexed":false,"name":"sender","type":"address"},{"indexed":false,"name":"amount","type":"uint256"},{"indexed":false,"name":"memo","type":"bytes"}],"name":"received","type":"event"}]`
 	abi, err := JSON(strings.NewReader(abiJSON))

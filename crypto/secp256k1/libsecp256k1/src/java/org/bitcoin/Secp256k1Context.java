@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http:
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.bitcoin;
 
 /**
@@ -20,10 +21,10 @@ package org.bitcoin;
  * to handle ECDSA operations.
  */
 public class Secp256k1Context {
-  private static final boolean enabled;
-  private static final long context;
+  private static final boolean enabled; //true if the library is loaded
+  private static final long context; //ref to pointer to context obj
 
-  static {
+  static { //static initializer
       boolean isEnabled = true;
       long contextRef = -1;
       try {
@@ -42,7 +43,7 @@ public class Secp256k1Context {
   }
 
   public static long getContext() {
-     if(!enabled) return -1;
+     if(!enabled) return -1; //sanity check
      return context;
   }
 

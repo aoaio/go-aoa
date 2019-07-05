@@ -1,14 +1,38 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package node_test
 
 import (
 	"fmt"
 	"log"
 
-	"github.com/Aurorachain/go-Aurora/node"
-	"github.com/Aurorachain/go-Aurora/p2p"
-	"github.com/Aurorachain/go-Aurora/rpc"
+	"github.com/Aurorachain/go-aoa/node"
+	"github.com/Aurorachain/go-aoa/p2p"
+	"github.com/Aurorachain/go-aoa/rpc"
 )
 
+// SampleService is a trivial network service that can be attached to a node for
+// life cycle management.
+//
+// The following methods are needed to implement a node.Service:
+//  - Protocols() []p2p.Protocol - devp2p protocols the service can communicate on
+//  - APIs() []rpc.API           - api methods the service wants to expose on rpc channels
+//  - Start() error              - method invoked when the node is ready to start the service
+//  - Stop() error               - method invoked when the node terminates the service
 type SampleService struct{}
 
 func (s *SampleService) Protocols() []p2p.Protocol { return nil }
@@ -17,19 +41,22 @@ func (s *SampleService) Start(*p2p.Server) error   { fmt.Println("Service starti
 func (s *SampleService) Stop() error               { fmt.Println("Service stopping..."); return nil }
 
 func ExampleService() {
-
+	// Create a network node to run protocols with the default values.
 	stack, err := node.New(&node.Config{})
 	if err != nil {
 		log.Fatalf("Failed to create network node: %v", err)
 	}
-
+	// Create and register a simple network service. This is done through the definition
+	// of a node.ServiceConstructor that will instantiate a node.Service. The reason for
+	// the factory method approach is to support service restarts without relying on the
+	// individual implementations' support for such operations.
 	constructor := func(context *node.ServiceContext) (node.Service, error) {
 		return new(SampleService), nil
 	}
 	if err := stack.Register(constructor); err != nil {
 		log.Fatalf("Failed to register service: %v", err)
 	}
-
+	// Boot up the entire protocol stack, do a restart and terminate
 	if err := stack.Start(); err != nil {
 		log.Fatalf("Failed to start the protocol stack: %v", err)
 	}
@@ -39,5 +66,9 @@ func ExampleService() {
 	if err := stack.Stop(); err != nil {
 		log.Fatalf("Failed to stop the protocol stack: %v", err)
 	}
-
+	// Output:
+	// Service starting...
+	// Service stopping...
+	// Service starting...
+	// Service stopping...
 }

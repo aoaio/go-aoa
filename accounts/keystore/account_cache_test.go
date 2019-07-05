@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package keystore
 
 import (
@@ -11,8 +27,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Aurorachain/go-Aurora/accounts"
-	"github.com/Aurorachain/go-Aurora/common"
+	"github.com/Aurorachain/go-aoa/accounts"
+	"github.com/Aurorachain/go-aoa/common"
 	"github.com/cespare/cp"
 	"github.com/davecgh/go-spew/spew"
 )
@@ -41,9 +57,11 @@ func TestWatchNewFile(t *testing.T) {
 	dir, ks := tmpKeyStore(t, false)
 	defer os.RemoveAll(dir)
 
+	// Ensure the watcher is started before adding any files.
 	ks.Accounts()
 	time.Sleep(1000 * time.Millisecond)
 
+	// Move in the files.
 	wantAccounts := make([]accounts.Account, len(cachetestAccounts))
 	for i := range cachetestAccounts {
 		wantAccounts[i] = accounts.Account{
@@ -55,11 +73,12 @@ func TestWatchNewFile(t *testing.T) {
 		}
 	}
 
+	// ks should see the accounts.
 	var list []accounts.Account
 	for d := 200 * time.Millisecond; d < 5*time.Second; d *= 2 {
 		list = ks.Accounts()
 		if reflect.DeepEqual(list, wantAccounts) {
-
+			// ks should have also received change notifications
 			select {
 			case <-ks.changes:
 			default:
@@ -75,6 +94,7 @@ func TestWatchNewFile(t *testing.T) {
 func TestWatchNoDir(t *testing.T) {
 	t.Parallel()
 
+	// Create ks but not the directory that it watches.
 	rand.Seed(time.Now().UnixNano())
 	dir := filepath.Join(os.TempDir(), fmt.Sprintf("aoa-keystore-watch-test-%d-%d", os.Getpid(), rand.Int()))
 	ks := NewKeyStore(dir, LightScryptN, LightScryptP)
@@ -85,6 +105,7 @@ func TestWatchNoDir(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond)
 
+	// Create the directory and copy a key file into it.
 	os.MkdirAll(dir, 0700)
 	defer os.RemoveAll(dir)
 	file := filepath.Join(dir, "aaa")
@@ -92,12 +113,13 @@ func TestWatchNoDir(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// ks should see the account.
 	wantAccounts := []accounts.Account{cachetestAccounts[0]}
 	wantAccounts[0].URL = accounts.URL{Scheme: KeyStoreScheme, Path: file}
 	for d := 200 * time.Millisecond; d < 8*time.Second; d *= 2 {
 		list = ks.Accounts()
 		if reflect.DeepEqual(list, wantAccounts) {
-
+			// ks should have also received change notifications
 			select {
 			case <-ks.changes:
 			default:
@@ -120,7 +142,7 @@ func TestCacheInitialReload(t *testing.T) {
 
 func TestCacheAddDeleteOrder(t *testing.T) {
 	cache, _ := newAccountCache("testdata/no-such-dir")
-	cache.watcher.running = true
+	cache.watcher.running = true // prevent unexpected reloads
 
 	accs := []accounts.Account{
 		{
@@ -155,10 +177,11 @@ func TestCacheAddDeleteOrder(t *testing.T) {
 	for _, a := range accs {
 		cache.add(a)
 	}
-
+	// Add some of them twice to check that they don't get reinserted.
 	cache.add(accs[0])
 	cache.add(accs[2])
 
+	// Check that the account list is sorted by filename.
 	wantAccounts := make([]accounts.Account, len(accs))
 	copy(wantAccounts, accs)
 	sort.Sort(accountsByURL(wantAccounts))
@@ -175,11 +198,13 @@ func TestCacheAddDeleteOrder(t *testing.T) {
 		t.Errorf("expected hasAccount(%x) to return false", common.HexToAddress("fd9bd350f08ee3c0c19b85a8e16114a11a60aa4e"))
 	}
 
+	// Delete a few keys from the cache.
 	for i := 0; i < len(accs); i += 2 {
 		cache.delete(wantAccounts[i])
 	}
 	cache.delete(accounts.Account{Address: common.HexToAddress("fd9bd350f08ee3c0c19b85a8e16114a11a60aa4e"), URL: accounts.URL{Scheme: KeyStoreScheme, Path: "something"}})
 
+	// Check content again after deletion.
 	wantAccountsAfterDelete := []accounts.Account{
 		wantAccounts[1],
 		wantAccounts[3],
@@ -202,7 +227,7 @@ func TestCacheAddDeleteOrder(t *testing.T) {
 func TestCacheFind(t *testing.T) {
 	dir := filepath.Join("testdata", "dir")
 	cache, _ := newAccountCache(dir)
-	cache.watcher.running = true
+	cache.watcher.running = true // prevent unexpected reloads
 
 	accs := []accounts.Account{
 		{
@@ -235,17 +260,17 @@ func TestCacheFind(t *testing.T) {
 		WantResult accounts.Account
 		WantError  error
 	}{
-
+		// by address
 		{Query: accounts.Account{Address: accs[0].Address}, WantResult: accs[0]},
-
+		// by file
 		{Query: accounts.Account{URL: accs[0].URL}, WantResult: accs[0]},
-
+		// by basename
 		{Query: accounts.Account{URL: accounts.URL{Scheme: KeyStoreScheme, Path: filepath.Base(accs[0].URL.Path)}}, WantResult: accs[0]},
-
+		// by file and address
 		{Query: accs[0], WantResult: accs[0]},
-
+		// ambiguous address, tie resolved by file
 		{Query: accs[2], WantResult: accs[2]},
-
+		// ambiguous address error
 		{
 			Query: accounts.Account{Address: accs[2].Address},
 			WantError: &AmbiguousAddrError{
@@ -253,7 +278,7 @@ func TestCacheFind(t *testing.T) {
 				Matches: []accounts.Account{accs[2], accs[3]},
 			},
 		},
-
+		// no match error
 		{Query: nomatchAccount, WantError: ErrNoMatch},
 		{Query: accounts.Account{URL: nomatchAccount.URL}, WantError: ErrNoMatch},
 		{Query: accounts.Account{URL: accounts.URL{Scheme: KeyStoreScheme, Path: filepath.Base(nomatchAccount.URL.Path)}}, WantError: ErrNoMatch},
@@ -277,7 +302,7 @@ func waitForAccounts(wantAccounts []accounts.Account, ks *KeyStore) error {
 	for d := 200 * time.Millisecond; d < 8*time.Second; d *= 2 {
 		list = ks.Accounts()
 		if reflect.DeepEqual(list, wantAccounts) {
-
+			// ks should have also received change notifications
 			select {
 			case <-ks.changes:
 			default:
@@ -290,9 +315,12 @@ func waitForAccounts(wantAccounts []accounts.Account, ks *KeyStore) error {
 	return fmt.Errorf("\ngot  %v\nwant %v", list, wantAccounts)
 }
 
+// TestUpdatedKeyfileContents tests that updating the contents of a keystore file
+// is noticed by the watcher, and the account cache is updated accordingly
 func TestUpdatedKeyfileContents(t *testing.T) {
 	t.Parallel()
 
+	// Create a temporary kesytore to test with
 	rand.Seed(time.Now().UnixNano())
 	dir := filepath.Join(os.TempDir(), fmt.Sprintf("aoa-keystore-watch-test-%d-%d", os.Getpid(), rand.Int()))
 	ks := NewKeyStore(dir, LightScryptN, LightScryptP)
@@ -303,14 +331,17 @@ func TestUpdatedKeyfileContents(t *testing.T) {
 	}
 	time.Sleep(100 * time.Millisecond)
 
+	// Create the directory and copy a key file into it.
 	os.MkdirAll(dir, 0700)
 	defer os.RemoveAll(dir)
 	file := filepath.Join(dir, "aaa")
 
+	// Place one of our testfiles in there
 	if err := cp.CopyFile(file, cachetestAccounts[0].URL.Path); err != nil {
 		t.Fatal(err)
 	}
 
+	// ks should see the account.
 	wantAccounts := []accounts.Account{cachetestAccounts[0]}
 	wantAccounts[0].URL = accounts.URL{Scheme: KeyStoreScheme, Path: file}
 	if err := waitForAccounts(wantAccounts, ks); err != nil {
@@ -318,8 +349,10 @@ func TestUpdatedKeyfileContents(t *testing.T) {
 		return
 	}
 
+	// needed so that modTime of `file` is different to its current value after forceCopyFile
 	time.Sleep(1000 * time.Millisecond)
 
+	// Now replace file contents
 	if err := forceCopyFile(file, cachetestAccounts[1].URL.Path); err != nil {
 		t.Fatal(err)
 		return
@@ -332,8 +365,10 @@ func TestUpdatedKeyfileContents(t *testing.T) {
 		return
 	}
 
+	// needed so that modTime of `file` is different to its current value after forceCopyFile
 	time.Sleep(1000 * time.Millisecond)
 
+	// Now replace file contents again
 	if err := forceCopyFile(file, cachetestAccounts[2].URL.Path); err != nil {
 		t.Fatal(err)
 		return
@@ -346,8 +381,10 @@ func TestUpdatedKeyfileContents(t *testing.T) {
 		return
 	}
 
+	// needed so that modTime of `file` is different to its current value after ioutil.WriteFile
 	time.Sleep(1000 * time.Millisecond)
 
+	// Now replace file contents with crap
 	if err := ioutil.WriteFile(file, []byte("foo"), 0644); err != nil {
 		t.Fatal(err)
 		return
@@ -359,6 +396,7 @@ func TestUpdatedKeyfileContents(t *testing.T) {
 	}
 }
 
+// forceCopyFile is like cp.CopyFile, but doesn't complain if the destination exists.
 func forceCopyFile(dst, src string) error {
 	data, err := ioutil.ReadFile(src)
 	if err != nil {

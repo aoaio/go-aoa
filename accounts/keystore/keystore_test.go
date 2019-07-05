@@ -1,13 +1,29 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package keystore
 
 import (
 	"crypto/ecdsa"
 	"encoding/base64"
 	"fmt"
-	"github.com/Aurorachain/go-Aurora/accounts"
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/crypto"
-	"github.com/Aurorachain/go-Aurora/event"
+	"github.com/Aurorachain/go-aoa/accounts"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/crypto"
+	"github.com/Aurorachain/go-aoa/event"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -59,7 +75,7 @@ func TestSign(t *testing.T) {
 	dir, ks := tmpKeyStore(t, true)
 	defer os.RemoveAll(dir)
 
-	pass := ""
+	pass := "" // not used but required by API
 	a1, err := ks.NewAccount(pass)
 	if err != nil {
 		t.Fatal(err)
@@ -110,20 +126,24 @@ func TestTimedUnlock(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Signing without passphrase fails because account is locked
 	_, err = ks.SignHash(accounts.Account{Address: a1.Address}, testSigData)
 	if err != ErrLocked {
 		t.Fatal("Signing should've failed with ErrLocked before unlocking, got ", err)
 	}
 
+	// Signing with passphrase works
 	if err = ks.TimedUnlock(a1, pass, 100*time.Millisecond); err != nil {
 		t.Fatal(err)
 	}
 
+	// Signing without passphrase works because account is temp unlocked
 	_, err = ks.SignHash(accounts.Account{Address: a1.Address}, testSigData)
 	if err != nil {
 		t.Fatal("Signing shouldn't return an error after unlocking, got ", err)
 	}
 
+	// Signing fails again after automatic locking
 	time.Sleep(250 * time.Millisecond)
 	_, err = ks.SignHash(accounts.Account{Address: a1.Address}, testSigData)
 	if err != ErrLocked {
@@ -141,24 +161,29 @@ func TestOverrideUnlock(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Unlock indefinitely.
 	if err = ks.TimedUnlock(a1, pass, 5*time.Minute); err != nil {
 		t.Fatal(err)
 	}
 
+	// Signing without passphrase works because account is temp unlocked
 	_, err = ks.SignHash(accounts.Account{Address: a1.Address}, testSigData)
 	if err != nil {
 		t.Fatal("Signing shouldn't return an error after unlocking, got ", err)
 	}
 
+	// reset unlock to a shorter period, invalidates the previous unlock
 	if err = ks.TimedUnlock(a1, pass, 100*time.Millisecond); err != nil {
 		t.Fatal(err)
 	}
 
+	// Signing without passphrase still works because account is temp unlocked
 	_, err = ks.SignHash(accounts.Account{Address: a1.Address}, testSigData)
 	if err != nil {
 		t.Fatal("Signing shouldn't return an error after unlocking, got ", err)
 	}
 
+	// Signing fails again after automatic locking
 	time.Sleep(250 * time.Millisecond)
 	_, err = ks.SignHash(accounts.Account{Address: a1.Address}, testSigData)
 	if err != ErrLocked {
@@ -166,10 +191,12 @@ func TestOverrideUnlock(t *testing.T) {
 	}
 }
 
+// This test should fail under -race if signing races the expiration goroutine.
 func TestSignRace(t *testing.T) {
 	dir, ks := tmpKeyStore(t, false)
 	defer os.RemoveAll(dir)
 
+	// Create a test account.
 	a1, err := ks.NewAccount("")
 	if err != nil {
 		t.Fatal("could not create the test account", err)
@@ -191,11 +218,14 @@ func TestSignRace(t *testing.T) {
 	t.Errorf("Account did not lock within the timeout")
 }
 
+// Tests that the wallet notifier loop starts and stops correctly based on the
+// addition and removal of wallet event subscriptions.
 func TestWalletNotifierLifecycle(t *testing.T) {
-
+	// Create a temporary kesytore to test with
 	dir, ks := tmpKeyStore(t, false)
 	defer os.RemoveAll(dir)
 
+	// Ensure that the notification updater is not running yet
 	time.Sleep(250 * time.Millisecond)
 	ks.mu.RLock()
 	updating := ks.updating
@@ -204,14 +234,15 @@ func TestWalletNotifierLifecycle(t *testing.T) {
 	if updating {
 		t.Errorf("wallet notifier running without subscribers")
 	}
-
+	// Subscribe to the wallet feed and ensure the updater boots up
 	updates := make(chan accounts.WalletEvent)
 
 	subs := make([]event.Subscription, 2)
 	for i := 0; i < len(subs); i++ {
-
+		// Create a new subscription
 		subs[i] = ks.Subscribe(updates)
 
+		// Ensure the notifier comes online
 		time.Sleep(250 * time.Millisecond)
 		ks.mu.RLock()
 		updating = ks.updating
@@ -221,11 +252,12 @@ func TestWalletNotifierLifecycle(t *testing.T) {
 			t.Errorf("sub %d: wallet notifier not running after subscription", i)
 		}
 	}
-
+	// Unsubscribe and ensure the updater terminates eventually
 	for i := 0; i < len(subs); i++ {
-
+		// Close an existing subscription
 		subs[i].Unsubscribe()
 
+		// Ensure the notifier shuts down at and only at the last close
 		for k := 0; k < int(walletRefreshCycle/(250*time.Millisecond))+2; k++ {
 			ks.mu.RLock()
 			updating = ks.updating
@@ -248,10 +280,13 @@ type walletEvent struct {
 	a accounts.Account
 }
 
+// Tests that wallet notifications and correctly fired when accounts are added
+// or deleted from the keystore.
 func TestWalletNotifications(t *testing.T) {
 	dir, ks := tmpKeyStore(t, false)
 	defer os.RemoveAll(dir)
 
+	// Subscribe to the wallet feed and collect events.
 	var (
 		events  []walletEvent
 		updates = make(chan accounts.WalletEvent)
@@ -270,13 +305,14 @@ func TestWalletNotifications(t *testing.T) {
 		}
 	}()
 
+	// Randomly add and remove accounts.
 	var (
 		live       = make(map[common.Address]accounts.Account)
 		wantEvents []walletEvent
 	)
 	for i := 0; i < 1024; i++ {
 		if create := len(live) == 0 || rand.Int()%4 > 0; create {
-
+			// Add a new account and ensure wallet notifications arrives
 			account, err := ks.NewAccount("")
 			if err != nil {
 				t.Fatalf("failed to create test account: %v", err)
@@ -284,7 +320,7 @@ func TestWalletNotifications(t *testing.T) {
 			live[account.Address] = account
 			wantEvents = append(wantEvents, walletEvent{accounts.WalletEvent{Kind: accounts.WalletArrived}, account})
 		} else {
-
+			// Delete a random account.
 			var account accounts.Account
 			for _, a := range live {
 				account = a
@@ -298,18 +334,20 @@ func TestWalletNotifications(t *testing.T) {
 		}
 	}
 
+	// Shut down the event collector and check events.
 	sub.Unsubscribe()
 	<-updates
 	checkAccounts(t, live, ks.Wallets())
 	checkEvents(t, wantEvents, events)
 }
 
+// 通过keystore文件获取私钥
 func TestKeyStore_Import(t *testing.T) {
-
+	// keyStore := NewKeyStore("/Users/name/Library/Aurorachain/keystore", veryLightScryptN, veryLightScryptP)
 	keyStore := NewKeyStore("", veryLightScryptN, veryLightScryptP)
-
+	// UTC--2018-03-07T05-43-28.637655000Z--34f6feaa439ea2e92438365933067acaff5e3b7c
 	address := common.HexToAddress("0x34f6feaa439ea2e92438365933067acaff5e3b7c")
-	key, err := keyStore.storage.GetKey(address, "/Users/user/Library/Aurorachain/keystore/UTC--2018-03-07T05-43-28.637655000Z--34f6feaa439ea2e92438365933067acaff5e3b7c", "user")
+	key, err := keyStore.storage.GetKey(address, "/Users/name/Library/Aurorachain/keystore/UTC--2018-03-07T05-43-28.637655000Z--34f6feaa439ea2e92438365933067acaff5e3b7c", "name")
 	if err != nil {
 		t.Errorf("GetKey err:%v", err)
 	}
@@ -322,9 +360,9 @@ func TestKeyStore_Import(t *testing.T) {
 }
 
 func TestGetPrivateKeyByKeyFile(t *testing.T) {
-
-	password := "user"
-	fileName := "/Users/user/Library/Aurorachain/keystore/UTC--2018-03-07T05-43-28.637655000Z--34f6feaa439ea2e92438365933067acaff5e3b7c"
+	// address := "0x34f6feaa439ea2e92438365933067acaff5e3b7c"
+	password := "password"
+	fileName := "/Users/name/Library/Aurorachain/keystore/UTC--2018-03-07T05-43-28.637655000Z--34f6feaa439ea2e92438365933067acaff5e3b7c"
 	privateKey, err := GetPrivateKeyByKeyFile(fileName, password)
 	privateByte := crypto.FromECDSA(privateKey)
 	privateString := base64.StdEncoding.EncodeToString(privateByte)
@@ -339,6 +377,7 @@ func TestGetPrivateKeyByKeyFile(t *testing.T) {
 	fmt.Printf("address:%s\n", crypto.PubkeyToAddress(*publicKey).Hex())
 }
 
+// checkAccounts checks that all known live accounts are present in the wallet list.
 func checkAccounts(t *testing.T, live map[common.Address]accounts.Account, wallets []accounts.Wallet) {
 	if len(live) != len(wallets) {
 		t.Errorf("wallet list doesn't match required accounts: have %d, want %d", len(wallets), len(live))
@@ -358,6 +397,7 @@ func checkAccounts(t *testing.T, live map[common.Address]accounts.Account, walle
 	}
 }
 
+// checkEvents checks that all events in 'want' are present in 'have'. Events may be present multiple times.
 func checkEvents(t *testing.T, want []walletEvent, have []walletEvent) {
 	for _, wantEv := range want {
 		nmatch := 0

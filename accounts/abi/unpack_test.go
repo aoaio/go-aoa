@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package abi
 
 import (
@@ -10,15 +26,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Aurorachain/go-Aurora/common"
+	"github.com/Aurorachain/go-aoa/common"
 	"github.com/stretchr/testify/require"
 )
 
 type unpackTest struct {
-	def  string
-	enc  string
-	want interface{}
-	err  string
+	def  string      // ABI definition JSON
+	enc  string      // evm return data
+	want interface{} // the expected output
+	err  string      // empty or error if expected
 }
 
 func (test unpackTest) checkError(err error) error {
@@ -121,7 +137,7 @@ var unpackTests = []unpackTest{
 		enc:  "0100000000000000000000000000000000000000000000000000000000000000",
 		want: [24]byte{1},
 	},
-
+	// slices
 	{
 		def:  `[{"type": "uint8[]"}]`,
 		enc:  "0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002",
@@ -132,7 +148,7 @@ var unpackTests = []unpackTest{
 		enc:  "00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002",
 		want: [2]uint8{1, 2},
 	},
-
+	// multi dimensional, if these pass, all walletType that don't require length prefix should pass
 	{
 		def:  `[{"type": "uint8[][]"}]`,
 		enc:  "00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000E0000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002",
@@ -243,7 +259,7 @@ var unpackTests = []unpackTest{
 		enc:  "000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000003",
 		want: [3]*big.Int{big.NewInt(1), big.NewInt(2), big.NewInt(3)},
 	},
-
+	// struct outputs
 	{
 		def: `[{"name":"int1","type":"int256"},{"name":"int2","type":"int256"}]`,
 		enc: "00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002",
@@ -328,7 +344,7 @@ func methodMultiReturn(require *require.Assertions) (ABI, []byte, methodMultiOut
 
 	abi, err := JSON(strings.NewReader(definition))
 	require.NoError(err)
-
+	// using buff to make the code readable
 	buff := new(bytes.Buffer)
 	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000001"))
 	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000040"))
@@ -437,6 +453,7 @@ func TestUnmarshal(t *testing.T) {
 	}
 	buff := new(bytes.Buffer)
 
+	// marshall mixed bytes (mixedBytes)
 	p0, p0Exp := []byte{}, common.Hex2Bytes("01020000000000000000")
 	p1, p1Exp := [32]byte{}, common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000ddeeff")
 	mixedBytes := []interface{}{&p0, &p1}
@@ -459,6 +476,7 @@ func TestUnmarshal(t *testing.T) {
 		}
 	}
 
+	// marshal int
 	var Int *big.Int
 	err = abi.Unpack(&Int, "int", common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000001"))
 	if err != nil {
@@ -469,6 +487,7 @@ func TestUnmarshal(t *testing.T) {
 		t.Error("expected Int to be 1 got", Int)
 	}
 
+	// marshal bool
 	var Bool bool
 	err = abi.Unpack(&Bool, "bool", common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000001"))
 	if err != nil {
@@ -479,6 +498,7 @@ func TestUnmarshal(t *testing.T) {
 		t.Error("expected Bool to be true")
 	}
 
+	// marshal dynamic bytes max length 32
 	buff.Reset()
 	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000020"))
 	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000020"))
@@ -495,6 +515,7 @@ func TestUnmarshal(t *testing.T) {
 		t.Errorf("expected %x got %x", bytesOut, Bytes)
 	}
 
+	// marshall dynamic bytes max length 64
 	buff.Reset()
 	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000020"))
 	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000040"))
@@ -510,6 +531,7 @@ func TestUnmarshal(t *testing.T) {
 		t.Errorf("expected %x got %x", bytesOut, Bytes)
 	}
 
+	// marshall dynamic bytes max length 64
 	buff.Reset()
 	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000020"))
 	buff.Write(common.Hex2Bytes("000000000000000000000000000000000000000000000000000000000000003f"))
@@ -525,11 +547,13 @@ func TestUnmarshal(t *testing.T) {
 		t.Errorf("expected %x got %x", bytesOut[:len(bytesOut)-1], Bytes)
 	}
 
+	// marshal dynamic bytes output empty
 	err = abi.Unpack(&Bytes, "bytes", nil)
 	if err == nil {
 		t.Error("expected error")
 	}
 
+	// marshal dynamic bytes length 5
 	buff.Reset()
 	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000020"))
 	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000005"))
@@ -544,6 +568,7 @@ func TestUnmarshal(t *testing.T) {
 		t.Errorf("expected %x got %x", bytesOut, Bytes)
 	}
 
+	// marshal dynamic bytes length 5
 	buff.Reset()
 	buff.Write(common.RightPadBytes([]byte("hello"), 32))
 
@@ -558,6 +583,7 @@ func TestUnmarshal(t *testing.T) {
 		t.Errorf("Expected %x to equal %x", hash, helloHash)
 	}
 
+	// marshal error
 	buff.Reset()
 	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000020"))
 	err = abi.Unpack(&Bytes, "bytes", buff.Bytes())
@@ -574,7 +600,7 @@ func TestUnmarshal(t *testing.T) {
 	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000001"))
 	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000002"))
 	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000003"))
-
+	// marshal int array
 	var intArray [3]*big.Int
 	err = abi.Unpack(&intArray, "intArraySingle", buff.Bytes())
 	if err != nil {
@@ -590,10 +616,10 @@ func TestUnmarshal(t *testing.T) {
 			t.Errorf("expected %v, got %v", testAgainstIntArray[i], Int)
 		}
 	}
-
+	// marshal address slice
 	buff.Reset()
-	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000020"))
-	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000001"))
+	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000020")) // offset
+	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000001")) // size
 	buff.Write(common.Hex2Bytes("0000000000000000000000000100000000000000000000000000000000000000"))
 
 	var outAddr []common.Address
@@ -610,12 +636,13 @@ func TestUnmarshal(t *testing.T) {
 		t.Errorf("expected %x, got %x", common.Address{1}, outAddr[0])
 	}
 
+	// marshal multiple address slice
 	buff.Reset()
-	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000040"))
-	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000080"))
-	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000001"))
+	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000040")) // offset
+	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000080")) // offset
+	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000001")) // size
 	buff.Write(common.Hex2Bytes("0000000000000000000000000100000000000000000000000000000000000000"))
-	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000002"))
+	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000002")) // size
 	buff.Write(common.Hex2Bytes("0000000000000000000000000200000000000000000000000000000000000000"))
 	buff.Write(common.Hex2Bytes("0000000000000000000000000300000000000000000000000000000000000000"))
 
@@ -647,6 +674,7 @@ func TestUnmarshal(t *testing.T) {
 		t.Errorf("expected %x, got %x", common.Address{3}, outAddrStruct.B[1])
 	}
 
+	// marshal invalid address slice
 	buff.Reset()
 	buff.Write(common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000100"))
 

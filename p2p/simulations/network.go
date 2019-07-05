@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package simulations
 
 import (
@@ -8,20 +24,29 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Aurorachain/go-Aurora/event"
-	"github.com/Aurorachain/go-Aurora/log"
-	"github.com/Aurorachain/go-Aurora/p2p"
-	"github.com/Aurorachain/go-Aurora/p2p/discover"
-	"github.com/Aurorachain/go-Aurora/p2p/simulations/adapters"
+	"github.com/Aurorachain/go-aoa/event"
+	"github.com/Aurorachain/go-aoa/log"
+	"github.com/Aurorachain/go-aoa/p2p"
+	"github.com/Aurorachain/go-aoa/p2p/discover"
+	"github.com/Aurorachain/go-aoa/p2p/simulations/adapters"
 )
 
 var dialBanTimeout = 200 * time.Millisecond
 
+// NetworkConfig defines configuration options for starting a Network
 type NetworkConfig struct {
 	ID             string `json:"id"`
 	DefaultService string `json:"default_service,omitempty"`
 }
 
+// Network models a p2p simulation network which consists of a collection of
+// simulated nodes and the connections which exist between them.
+//
+// The Network has a single NodeAdapter which is responsible for actually
+// starting nodes and connecting them together.
+//
+// The Network emits events when nodes are started and stopped, when they are
+// connected and disconnected, and also when messages are sent between nodes.
 type Network struct {
 	NetworkConfig
 
@@ -37,6 +62,7 @@ type Network struct {
 	quitc       chan struct{}
 }
 
+// NewNetwork returns a Network which uses the given NodeAdapter and NetworkConfig
 func NewNetwork(nodeAdapter adapters.NodeAdapter, conf *NetworkConfig) *Network {
 	return &Network{
 		NetworkConfig: *conf,
@@ -47,20 +73,25 @@ func NewNetwork(nodeAdapter adapters.NodeAdapter, conf *NetworkConfig) *Network 
 	}
 }
 
+// Events returns the output event feed of the Network.
 func (self *Network) Events() *event.Feed {
 	return &self.events
 }
 
+// NewNode adds a new node to the network with a random ID
 func (self *Network) NewNode() (*Node, error) {
 	conf := adapters.RandomNodeConfig()
 	conf.Services = []string{self.DefaultService}
 	return self.NewNodeWithConfig(conf)
 }
 
+// NewNodeWithConfig adds a new node to the network with the given config,
+// returning an error if a node with the same ID or name already exists
 func (self *Network) NewNodeWithConfig(conf *adapters.NodeConfig) (*Node, error) {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 
+	// create a random ID and PrivateKey if not set
 	if conf.ID == (discover.NodeID{}) {
 		c := adapters.RandomNodeConfig()
 		conf.ID = c.ID
@@ -74,10 +105,12 @@ func (self *Network) NewNodeWithConfig(conf *adapters.NodeConfig) (*Node, error)
 		}
 	}
 
+	// assign a name to the node if not set
 	if conf.Name == "" {
 		conf.Name = fmt.Sprintf("node%02d", len(self.Nodes)+1)
 	}
 
+	// check the node doesn't already exist
 	if node := self.getNode(id); node != nil {
 		return nil, fmt.Errorf("node with ID %q already exists", id)
 	}
@@ -85,10 +118,12 @@ func (self *Network) NewNodeWithConfig(conf *adapters.NodeConfig) (*Node, error)
 		return nil, fmt.Errorf("node with name %q already exists", conf.Name)
 	}
 
+	// if no services are configured, use the default service
 	if len(conf.Services) == 0 {
 		conf.Services = []string{self.DefaultService}
 	}
 
+	// use the NodeAdapter to create the node
 	adapterNode, err := self.nodeAdapter.NewNode(conf)
 	if err != nil {
 		return nil, err
@@ -97,19 +132,22 @@ func (self *Network) NewNodeWithConfig(conf *adapters.NodeConfig) (*Node, error)
 		Node:   adapterNode,
 		Config: conf,
 	}
-	log.Trace(fmt.Sprintf("node %v created", id))
+	log.Debug(fmt.Sprintf("node %v created", id))
 	self.nodeMap[id] = len(self.Nodes)
 	self.Nodes = append(self.Nodes, node)
 
+	// emit a "control" event
 	self.events.Send(ControlEvent(node))
 
 	return node, nil
 }
 
+// Config returns the network configuration
 func (self *Network) Config() *NetworkConfig {
 	return &self.NetworkConfig
 }
 
+// StartAll starts all nodes in the network
 func (self *Network) StartAll() error {
 	for _, node := range self.Nodes {
 		if node.Up {
@@ -122,6 +160,7 @@ func (self *Network) StartAll() error {
 	return nil
 }
 
+// StopAll stops all nodes in the network
 func (self *Network) StopAll() error {
 	for _, node := range self.Nodes {
 		if !node.Up {
@@ -134,10 +173,13 @@ func (self *Network) StopAll() error {
 	return nil
 }
 
+// Start starts the node with the given ID
 func (self *Network) Start(id discover.NodeID) error {
 	return self.startWithSnapshots(id, nil)
 }
 
+// startWithSnapshots starts the node with the given ID using the give
+// snapshots
 func (self *Network) startWithSnapshots(id discover.NodeID, snapshots map[string][]byte) error {
 	node := self.GetNode(id)
 	if node == nil {
@@ -146,7 +188,7 @@ func (self *Network) startWithSnapshots(id discover.NodeID, snapshots map[string
 	if node.Up {
 		return fmt.Errorf("node %v already up", id)
 	}
-	log.Trace(fmt.Sprintf("starting node %v: %v using %v", id, node.Up, self.nodeAdapter.Name()))
+	log.Debug(fmt.Sprintf("starting node %v: %v using %v", id, node.Up, self.nodeAdapter.Name()))
 	if err := node.Start(snapshots); err != nil {
 		log.Warn(fmt.Sprintf("start up failed: %v", err))
 		return err
@@ -156,6 +198,7 @@ func (self *Network) startWithSnapshots(id discover.NodeID, snapshots map[string
 
 	self.events.Send(NewEvent(node))
 
+	// subscribe to peer events
 	client, err := node.Client()
 	if err != nil {
 		return fmt.Errorf("error getting rpc client  for node %v: %s", id, err)
@@ -169,10 +212,13 @@ func (self *Network) startWithSnapshots(id discover.NodeID, snapshots map[string
 	return nil
 }
 
+// watchPeerEvents reads peer events from the given channel and emits
+// corresponding network events
 func (self *Network) watchPeerEvents(id discover.NodeID, events chan *p2p.PeerEvent, sub event.Subscription) {
 	defer func() {
 		sub.Unsubscribe()
 
+		// assume the node is now down
 		self.lock.Lock()
 		node := self.getNode(id)
 		node.Up = false
@@ -211,6 +257,7 @@ func (self *Network) watchPeerEvents(id discover.NodeID, events chan *p2p.PeerEv
 	}
 }
 
+// Stop stops the node with the given ID
 func (self *Network) Stop(id discover.NodeID) error {
 	node := self.GetNode(id)
 	if node == nil {
@@ -229,8 +276,10 @@ func (self *Network) Stop(id discover.NodeID) error {
 	return nil
 }
 
+// Connect connects two nodes together by calling the "admin_addPeer" RPC
+// method on the "one" node so that it connects to the "other" node
 func (self *Network) Connect(oneID, otherID discover.NodeID) error {
-	log.Debug(fmt.Sprintf("connecting %s to %s", oneID, otherID))
+	log.Info(fmt.Sprintf("connecting %s to %s", oneID, otherID))
 	conn, err := self.InitConn(oneID, otherID)
 	if err != nil {
 		return err
@@ -243,6 +292,8 @@ func (self *Network) Connect(oneID, otherID discover.NodeID) error {
 	return client.Call(nil, "admin_addPeer", string(conn.other.Addr()))
 }
 
+// Disconnect disconnects two nodes by calling the "admin_removePeer" RPC
+// method on the "one" node so that it disconnects from the "other" node
 func (self *Network) Disconnect(oneID, otherID discover.NodeID) error {
 	conn := self.GetConn(oneID, otherID)
 	if conn == nil {
@@ -259,6 +310,7 @@ func (self *Network) Disconnect(oneID, otherID discover.NodeID) error {
 	return client.Call(nil, "admin_removePeer", string(conn.other.Addr()))
 }
 
+// DidConnect tracks the fact that the "one" node connected to the "other" node
 func (self *Network) DidConnect(one, other discover.NodeID) error {
 	conn, err := self.GetOrCreateConn(one, other)
 	if err != nil {
@@ -272,6 +324,8 @@ func (self *Network) DidConnect(one, other discover.NodeID) error {
 	return nil
 }
 
+// DidDisconnect tracks the fact that the "one" node disconnected from the
+// "other" node
 func (self *Network) DidDisconnect(one, other discover.NodeID) error {
 	conn := self.GetConn(one, other)
 	if conn == nil {
@@ -286,6 +340,7 @@ func (self *Network) DidDisconnect(one, other discover.NodeID) error {
 	return nil
 }
 
+// DidSend tracks the fact that "sender" sent a message to "receiver"
 func (self *Network) DidSend(sender, receiver discover.NodeID, proto string, code uint64) error {
 	msg := &Msg{
 		One:      sender,
@@ -298,6 +353,7 @@ func (self *Network) DidSend(sender, receiver discover.NodeID, proto string, cod
 	return nil
 }
 
+// DidReceive tracks the fact that "receiver" received a message from "sender"
 func (self *Network) DidReceive(sender, receiver discover.NodeID, proto string, code uint64) error {
 	msg := &Msg{
 		One:      sender,
@@ -310,12 +366,16 @@ func (self *Network) DidReceive(sender, receiver discover.NodeID, proto string, 
 	return nil
 }
 
+// GetNode gets the node with the given ID, returning nil if the node does not
+// exist
 func (self *Network) GetNode(id discover.NodeID) *Node {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 	return self.getNode(id)
 }
 
+// GetNode gets the node with the given name, returning nil if the node does
+// not exist
 func (self *Network) GetNodeByName(name string) *Node {
 	self.lock.Lock()
 	defer self.lock.Unlock()
@@ -339,6 +399,7 @@ func (self *Network) getNodeByName(name string) *Node {
 	return nil
 }
 
+// GetNodes returns the existing nodes
 func (self *Network) GetNodes() (nodes []*Node) {
 	self.lock.Lock()
 	defer self.lock.Unlock()
@@ -347,12 +408,16 @@ func (self *Network) GetNodes() (nodes []*Node) {
 	return nodes
 }
 
+// GetConn returns the connection which exists between "one" and "other"
+// regardless of which node initiated the connection
 func (self *Network) GetConn(oneID, otherID discover.NodeID) *Conn {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 	return self.getConn(oneID, otherID)
 }
 
+// GetOrCreateConn is like GetConn but creates the connection if it doesn't
+// already exist
 func (self *Network) GetOrCreateConn(oneID, otherID discover.NodeID) (*Conn, error) {
 	self.lock.Lock()
 	defer self.lock.Unlock()
@@ -393,6 +458,14 @@ func (self *Network) getConn(oneID, otherID discover.NodeID) *Conn {
 	return self.Conns[i]
 }
 
+// InitConn(one, other) retrieves the connectiton model for the connection between
+// peers one and other, or creates a new one if it does not exist
+// the order of nodes does not matter, i.e., Conn(i,j) == Conn(j, i)
+// it checks if the connection is already up, and if the nodes are running
+// NOTE:
+// it also checks whether there has been recent attempt to connect the peers
+// this is cheating as the simulation is used as an oracle and know about
+// remote peers attempt to connect to a node which will then not initiate the connection
 func (self *Network) InitConn(oneID, otherID discover.NodeID) (*Conn, error) {
 	self.lock.Lock()
 	defer self.lock.Unlock()
@@ -417,9 +490,10 @@ func (self *Network) InitConn(oneID, otherID discover.NodeID) (*Conn, error) {
 	return conn, nil
 }
 
+// Shutdown stops all nodes in the network and closes the quit channel
 func (self *Network) Shutdown() {
 	for _, node := range self.Nodes {
-		log.Debug(fmt.Sprintf("stopping node %s", node.ID().TerminalString()))
+		log.Info(fmt.Sprintf("stopping node %s", node.ID().TerminalString()))
 		if err := node.Stop(); err != nil {
 			log.Warn(fmt.Sprintf("error stopping node %s", node.ID().TerminalString()), "err", err)
 		}
@@ -427,10 +501,13 @@ func (self *Network) Shutdown() {
 	close(self.quitc)
 }
 
+//Reset resets all network properties:
+//emtpies the nodes and the connection list
 func (self *Network) Reset() {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 
+	//re-initialize the maps
 	self.connMap = make(map[string]int)
 	self.nodeMap = make(map[discover.NodeID]int)
 
@@ -438,24 +515,31 @@ func (self *Network) Reset() {
 	self.Conns = nil
 }
 
+// Node is a wrapper around adapters.Node which is used to track the status
+// of a node in the network
 type Node struct {
 	adapters.Node `json:"-"`
 
+	// Config if the config used to created the node
 	Config *adapters.NodeConfig `json:"config"`
 
+	// Up tracks whether or not the node is running
 	Up bool `json:"up"`
 }
 
+// ID returns the ID of the node
 func (self *Node) ID() discover.NodeID {
 	return self.Config.ID
 }
 
+// String returns a log-friendly string
 func (self *Node) String() string {
 	return fmt.Sprintf("Node %v", self.ID().TerminalString())
 }
 
+// NodeInfo returns information about the node
 func (self *Node) NodeInfo() *p2p.NodeInfo {
-
+	// avoid a panic if the node is not started yet
 	if self.Node == nil {
 		return nil
 	}
@@ -464,6 +548,8 @@ func (self *Node) NodeInfo() *p2p.NodeInfo {
 	return info
 }
 
+// MarshalJSON implements the json.Marshaler interface so that the encoded
+// JSON includes the NodeInfo
 func (self *Node) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		Info   *p2p.NodeInfo        `json:"info,omitempty"`
@@ -476,20 +562,24 @@ func (self *Node) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// Conn represents a connection between two nodes in the network
 type Conn struct {
-
+	// One is the node which initiated the connection
 	One discover.NodeID `json:"one"`
 
+	// Other is the node which the connection was made to
 	Other discover.NodeID `json:"other"`
 
+	// Up tracks whether or not the connection is active
 	Up bool `json:"up"`
-
+	// Registers when the connection was grabbed to dial
 	initiated time.Time
 
 	one   *Node
 	other *Node
 }
 
+// nodesUp returns whether both nodes are currently up
 func (self *Conn) nodesUp() error {
 	if !self.one.Up {
 		return fmt.Errorf("one %v is not up", self.One)
@@ -500,10 +590,12 @@ func (self *Conn) nodesUp() error {
 	return nil
 }
 
+// String returns a log-friendly string
 func (self *Conn) String() string {
 	return fmt.Sprintf("Conn %v->%v", self.One.TerminalString(), self.Other.TerminalString())
 }
 
+// Msg represents a p2p message sent between two nodes in the network
 type Msg struct {
 	One      discover.NodeID `json:"one"`
 	Other    discover.NodeID `json:"other"`
@@ -512,10 +604,14 @@ type Msg struct {
 	Received bool            `json:"received"`
 }
 
+// String returns a log-friendly string
 func (self *Msg) String() string {
 	return fmt.Sprintf("Msg(%d) %v->%v", self.Code, self.One.TerminalString(), self.Other.TerminalString())
 }
 
+// ConnLabel generates a deterministic string which represents a connection
+// between two nodes, used to compare if two connections are between the same
+// nodes
 func ConnLabel(source, target discover.NodeID) string {
 	var first, second discover.NodeID
 	if bytes.Compare(source.Bytes(), target.Bytes()) > 0 {
@@ -528,17 +624,22 @@ func ConnLabel(source, target discover.NodeID) string {
 	return fmt.Sprintf("%v-%v", first, second)
 }
 
+// Snapshot represents the state of a network at a single point in time and can
+// be used to restore the state of a network
 type Snapshot struct {
 	Nodes []NodeSnapshot `json:"nodes,omitempty"`
 	Conns []Conn         `json:"conns,omitempty"`
 }
 
+// NodeSnapshot represents the state of a node in the network
 type NodeSnapshot struct {
 	Node Node `json:"node,omitempty"`
 
+	// Snapshots is arbitrary data gathered from calling node.Snapshots()
 	Snapshots map[string][]byte `json:"snapshots,omitempty"`
 }
 
+// Snapshot creates a network snapshot
 func (self *Network) Snapshot() (*Snapshot, error) {
 	self.lock.Lock()
 	defer self.lock.Unlock()
@@ -563,6 +664,7 @@ func (self *Network) Snapshot() (*Snapshot, error) {
 	return snap, nil
 }
 
+// Load loads a network snapshot
 func (self *Network) Load(snap *Snapshot) error {
 	for _, n := range snap.Nodes {
 		if _, err := self.NewNodeWithConfig(n.Node.Config); err != nil {
@@ -578,7 +680,8 @@ func (self *Network) Load(snap *Snapshot) error {
 	for _, conn := range snap.Conns {
 
 		if !self.GetNode(conn.One).Up || !self.GetNode(conn.Other).Up {
-
+			//in this case, at least one of the nodes of a connection is not up,
+			//so it would result in the snapshot `Load` to fail
 			continue
 		}
 		if err := self.Connect(conn.One, conn.Other); err != nil {
@@ -588,6 +691,7 @@ func (self *Network) Load(snap *Snapshot) error {
 	return nil
 }
 
+// Subscribe reads control events from a channel and executes them
 func (self *Network) Subscribe(events chan *Event) {
 	for {
 		select {
@@ -605,15 +709,15 @@ func (self *Network) Subscribe(events chan *Event) {
 }
 
 func (self *Network) executeControlEvent(event *Event) {
-	log.Trace("execute control event", "type", event.Type, "event", event)
+	log.Debugf("execute control event, type=%v, event=%v",  event.Type, event)
 	switch event.Type {
 	case EventTypeNode:
 		if err := self.executeNodeEvent(event); err != nil {
-			log.Error("error executing node event", "event", event, "err", err)
+			log.Errorf("error executing node event, type=%v, event=%v", event, err)
 		}
 	case EventTypeConn:
 		if err := self.executeConnEvent(event); err != nil {
-			log.Error("error executing conn event", "event", event, "err", err)
+			log.Errorf("error executing conn event, event=%v, err=%v",  event, err)
 		}
 	case EventTypeMsg:
 		log.Warn("ignoring control msg event")

@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package cmdtest
 
 import (
@@ -23,7 +39,7 @@ func NewTestCmd(t *testing.T, data interface{}) *TestCmd {
 }
 
 type TestCmd struct {
-
+	// For total convenience, all testing methods are available.
 	*testing.T
 
 	Func    template.FuncMap
@@ -36,6 +52,8 @@ type TestCmd struct {
 	stderr *testlogger
 }
 
+// Run exec's the current binary using name as argv[0] which will trigger the
+// reexec init function for that name (e.g. "aoa-test" in cmd/aoa/run_test.go)
 func (tt *TestCmd) Run(name string, args ...string) {
 	tt.stderr = &testlogger{t: tt.T}
 	tt.cmd = &exec.Cmd{
@@ -56,6 +74,10 @@ func (tt *TestCmd) Run(name string, args ...string) {
 	}
 }
 
+// InputLine writes the given text to the childs stdin.
+// This method can also be called from an expect template, e.g.:
+//
+//     aoa.expect(`Passphrase: {{.InputLine "password"}}`)
 func (tt *TestCmd) InputLine(s string) string {
 	io.WriteString(tt.stdin, s+"\n")
 	return ""
@@ -68,14 +90,20 @@ func (tt *TestCmd) SetTemplateFunc(name string, fn interface{}) {
 	tt.Func[name] = fn
 }
 
+// Expect runs its argument as a template, then expects the
+// child process to output the result of the template within 5s.
+//
+// If the template starts with a newline, the newline is removed
+// before matching.
 func (tt *TestCmd) Expect(tplsource string) {
-
+	// Generate the expected output by running the template.
 	tpl := template.Must(template.New("").Funcs(tt.Func).Parse(tplsource))
 	wantbuf := new(bytes.Buffer)
 	if err := tpl.Execute(wantbuf, tt.Data); err != nil {
 		panic(err)
 	}
-
+	// Trim exactly one newline at the beginning. This makes tests look
+	// much nicer because all expect strings are at column 0.
 	want := bytes.TrimPrefix(wantbuf.Bytes(), []byte("\n"))
 	if err := tt.matchExactOutput(want); err != nil {
 		tt.Fatal(err)
@@ -89,24 +117,31 @@ func (tt *TestCmd) matchExactOutput(want []byte) error {
 	tt.withKillTimeout(func() { n, _ = io.ReadFull(tt.stdout, buf) })
 	buf = buf[:n]
 	if n < len(want) || !bytes.Equal(buf, want) {
-
+		// Grab any additional buffered output in case of mismatch
+		// because it might help with debugging.
 		buf = append(buf, make([]byte, tt.stdout.Buffered())...)
 		tt.stdout.Read(buf[n:])
-
+		// Find the mismatch position.
 		for i := 0; i < n; i++ {
 			if want[i] != buf[i] {
-				return fmt.Errorf("Output mismatch at :\n---------------- (stdout text)\n%s%s\n---------------- (expected text)\n%s",
+				return fmt.Errorf("Output mismatch at ◊:\n---------------- (stdout text)\n%s◊%s\n---------------- (expected text)\n%s",
 					buf[:i], buf[i:n], want)
 			}
 		}
 		if n < len(want) {
-			return fmt.Errorf("Not enough output, got until :\n---------------- (stdout text)\n%s\n---------------- (expected text)\n%s%s",
+			return fmt.Errorf("Not enough output, got until ◊:\n---------------- (stdout text)\n%s\n---------------- (expected text)\n%s◊%s",
 				buf, want[:n], want[n:])
 		}
 	}
 	return nil
 }
 
+// ExpectRegexp expects the child process to output text matching the
+// given regular expression within 5s.
+//
+// Note that an arbitrary amount of output may be consumed by the
+// regular expression. This usually means that expect cannot be used
+// after ExpectRegexp.
 func (tt *TestCmd) ExpectRegexp(regex string) (*regexp.Regexp, []string) {
 	regex = strings.TrimPrefix(regex, "\n")
 	var (
@@ -130,6 +165,8 @@ func (tt *TestCmd) ExpectRegexp(regex string) (*regexp.Regexp, []string) {
 	return re, submatches
 }
 
+// ExpectExit expects the child process to exit within 5s without
+// printing any additional text on stdout.
 func (tt *TestCmd) ExpectExit() {
 	var output []byte
 	tt.withKillTimeout(func() {
@@ -152,6 +189,9 @@ func (tt *TestCmd) Interrupt() {
 	tt.cmd.Process.Signal(os.Interrupt)
 }
 
+// StderrText returns any stderr output written so far.
+// The returned text holds all log lines after ExpectExit has
+// returned.
 func (tt *TestCmd) StderrText() string {
 	tt.stderr.mu.Lock()
 	defer tt.stderr.mu.Unlock()
@@ -178,6 +218,8 @@ func (tt *TestCmd) withKillTimeout(fn func()) {
 	fn()
 }
 
+// testlogger logs all written lines via t.Log and also
+// collects them for later inspection.
 type testlogger struct {
 	t   *testing.T
 	mu  sync.Mutex
@@ -197,6 +239,7 @@ func (tl *testlogger) Write(b []byte) (n int, err error) {
 	return len(b), err
 }
 
+// runeTee collects text read through it into buf.
 type runeTee struct {
 	in interface {
 		io.Reader

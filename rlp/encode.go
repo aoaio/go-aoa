@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package rlp
 
 import (
@@ -9,16 +25,62 @@ import (
 )
 
 var (
+	// Common encoded values.
+	// These are useful when implementing EncodeRLP.
 	EmptyString = []byte{0x80}
 	EmptyList   = []byte{0xC0}
 )
 
+// Encoder is implemented by walletType that require custom
+// encoding rules or want to encode private fields.
 type Encoder interface {
+	// EncodeRLP should write the RLP encoding of its receiver to w.
+	// If the implementation is a pointer method, it may also be
+	// called for nil pointers.
+	//
+	// Implementations should generate valid RLP. The data written is
+	// not verified at the moment, but a future version might. It is
+	// recommended to write only a single value but writing multiple
+	// values or no value at all is also permitted.
 	EncodeRLP(io.Writer) error
 }
 
+// Encode writes the RLP encoding of val to w. Note that Encode may
+// perform many small writes in some cases. Consider making w
+// buffered.
+//
+// Encode uses the following type-dependent encoding rules:
+//
+// If the type implements the Encoder interface, Encode calls
+// EncodeRLP. This is true even for nil pointers, please see the
+// documentation for Encoder.
+//
+// To encode a pointer, the value being pointed to is encoded. For nil
+// pointers, Encode will encode the zero value of the type. A nil
+// pointer to a struct type always encodes as an empty RLP list.
+// A nil pointer to an array encodes as an empty list (or empty string
+// if the array has element type byte).
+//
+// Struct values are encoded as an RLP list of all their encoded
+// public fields. Recursive struct walletType are supported.
+//
+// To encode slices and arrays, the elements are encoded as an RLP
+// list of the value's elements. Note that arrays and slices with
+// element type uint8 or byte are always encoded as an RLP string.
+//
+// A Go string is encoded as an RLP string.
+//
+// An unsigned integer value is encoded as an RLP string. Zero always
+// encodes as an empty RLP string. Encode also supports *big.Int.
+//
+// An interface value encodes as the value contained in the interface.
+//
+// Boolean values are not supported, nor are signed integers, floating
+// point numbers, maps, channels and functions.
 func Encode(w io.Writer, val interface{}) error {
 	if outer, ok := w.(*encbuf); ok {
+		// Encode was called by some type's EncodeRLP.
+		// Avoid copying by writing to the outer encbuf directly.
 		return outer.encode(val)
 	}
 	eb := encbufPool.Get().(*encbuf)
@@ -30,6 +92,8 @@ func Encode(w io.Writer, val interface{}) error {
 	return eb.toWriter(w)
 }
 
+// EncodeBytes returns the RLP encoding of val.
+// Please see the documentation of Encode for the encoding rules.
 func EncodeToBytes(val interface{}) ([]byte, error) {
 	eb := encbufPool.Get().(*encbuf)
 	defer encbufPool.Put(eb)
@@ -40,6 +104,11 @@ func EncodeToBytes(val interface{}) ([]byte, error) {
 	return eb.toBytes(), nil
 }
 
+// EncodeReader returns a reader from which the RLP encoding of val
+// can be read. The returned size is the total size of the encoded
+// data.
+//
+// Please see the documentation of Encode for the encoding rules.
 func EncodeToReader(val interface{}) (size int, r io.Reader, err error) {
 	eb := encbufPool.Get().(*encbuf)
 	eb.reset()
@@ -61,10 +130,14 @@ type listhead struct {
 	size   int // total size of encoded data (including list headers)
 }
 
+// encode writes head to the given buffer, which must be at least
+// 9 bytes long. It returns the encoded bytes.
 func (head *listhead) encode(buf []byte) []byte {
 	return buf[:puthead(buf, 0xC0, 0xF7, uint64(head.size))]
 }
 
+// headsize returns the size of a list or string header
+// for a value of the given size.
 func headsize(size uint64) int {
 	if size < 56 {
 		return 1
@@ -72,6 +145,8 @@ func headsize(size uint64) int {
 	return 1 + intsize(size)
 }
 
+// puthead writes a list or string header to buf.
+// buf must be at least 9 bytes long.
 func puthead(buf []byte, smalltag, largetag byte, size uint64) int {
 	if size < 56 {
 		buf[0] = smalltag + byte(size)
@@ -83,6 +158,7 @@ func puthead(buf []byte, smalltag, largetag byte, size uint64) int {
 	}
 }
 
+// encbufs are pooled.
 var encbufPool = sync.Pool{
 	New: func() interface{} { return &encbuf{sizebuf: make([]byte, 9)} },
 }
@@ -97,6 +173,7 @@ func (w *encbuf) reset() {
 	}
 }
 
+// encbuf implements io.Writer so it can be passed it into EncodeRLP.
 func (w *encbuf) Write(b []byte) (int, error) {
 	w.str = append(w.str, b...)
 	return len(b), nil
@@ -124,6 +201,7 @@ func (w *encbuf) encodeStringHeader(size int) {
 
 func (w *encbuf) encodeString(b []byte) {
 	if len(b) == 1 && b[0] <= 0x7F {
+		// fits single byte, no string header
 		w.str = append(w.str, b[0])
 	} else {
 		w.encodeStringHeader(len(b))
@@ -155,12 +233,15 @@ func (w *encbuf) toBytes() []byte {
 	strpos := 0
 	pos := 0
 	for _, head := range w.lheads {
+		// write string data before header
 		n := copy(out[pos:], w.str[strpos:head.offset])
 		pos += n
 		strpos += n
+		// write the header
 		enc := head.encode(out[pos:])
 		pos += len(enc)
 	}
+	// copy string data after the last list header
 	copy(out[pos:], w.str[strpos:])
 	return out
 }
@@ -168,6 +249,7 @@ func (w *encbuf) toBytes() []byte {
 func (w *encbuf) toWriter(out io.Writer) (err error) {
 	strpos := 0
 	for _, head := range w.lheads {
+		// write string data before header
 		if head.offset-strpos > 0 {
 			n, err := out.Write(w.str[strpos:head.offset])
 			strpos += n
@@ -175,17 +257,21 @@ func (w *encbuf) toWriter(out io.Writer) (err error) {
 				return err
 			}
 		}
+		// write the header
 		enc := head.encode(w.sizebuf)
 		if _, err = out.Write(enc); err != nil {
 			return err
 		}
 	}
 	if strpos < len(w.str) {
+		// write string data after the last list header
 		_, err = out.Write(w.str[strpos:])
 	}
 	return err
 }
 
+// encReader is the io.Reader returned by EncodeToReader.
+// It releases its encbuf at EOF.
 type encReader struct {
 	buf    *encbuf // the buffer we're reading from. this is nil when we're at EOF.
 	lhpos  int     // index of list header that we're reading
@@ -196,6 +282,9 @@ type encReader struct {
 func (r *encReader) Read(b []byte) (n int, err error) {
 	for {
 		if r.piece = r.next(); r.piece == nil {
+			// Put the encode buffer back into the pool at EOF when it
+			// is first encountered. Subsequent calls still return EOF
+			// as the error but the buffer is no longer valid.
 			if r.buf != nil {
 				encbufPool.Put(r.buf)
 				r.buf = nil
@@ -205,6 +294,7 @@ func (r *encReader) Read(b []byte) (n int, err error) {
 		nn := copy(b[n:], r.piece)
 		n += nn
 		if nn < len(r.piece) {
+			// piece didn't fit, see you next time.
 			r.piece = r.piece[nn:]
 			return n, nil
 		}
@@ -212,18 +302,23 @@ func (r *encReader) Read(b []byte) (n int, err error) {
 	}
 }
 
+// next returns the next piece of data to be read.
+// it returns nil at EOF.
 func (r *encReader) next() []byte {
 	switch {
 	case r.buf == nil:
 		return nil
 
 	case r.piece != nil:
+		// There is still data available for reading.
 		return r.piece
 
 	case r.lhpos < len(r.buf.lheads):
+		// We're before the last list header.
 		head := r.buf.lheads[r.lhpos]
 		sizebefore := head.offset - r.strpos
 		if sizebefore > 0 {
+			// String data before header.
 			p := r.buf.str[r.strpos:head.offset]
 			r.strpos += sizebefore
 			return p
@@ -233,6 +328,7 @@ func (r *encReader) next() []byte {
 		}
 
 	case r.strpos < len(r.buf.str):
+		// String data at the end, after all list headers.
 		p := r.buf.str[r.strpos:]
 		r.strpos = len(r.buf.str)
 		return p
@@ -247,6 +343,7 @@ var (
 	big0             = big.NewInt(0)
 )
 
+// makeWriter creates a writer function for the given type.
 func makeWriter(typ reflect.Type, ts tags) (writer, error) {
 	kind := typ.Kind()
 	switch {
@@ -349,6 +446,8 @@ func writeBytes(val reflect.Value, w *encbuf) error {
 
 func writeByteArray(val reflect.Value, w *encbuf) error {
 	if !val.CanAddr() {
+		// Slice requires the value to be addressable.
+		// Make it addressable by copying.
 		copy := reflect.New(val.Type()).Elem()
 		copy.Set(val)
 		val = copy
@@ -362,6 +461,7 @@ func writeByteArray(val reflect.Value, w *encbuf) error {
 func writeString(val reflect.Value, w *encbuf) error {
 	s := val.String()
 	if len(s) == 1 && s[0] <= 0x7f {
+		// fits single byte, no string header
 		w.str = append(w.str, s[0])
 	} else {
 		w.encodeStringHeader(len(s))
@@ -374,8 +474,17 @@ func writeEncoder(val reflect.Value, w *encbuf) error {
 	return val.Interface().(Encoder).EncodeRLP(w)
 }
 
+// writeEncoderNoPtr handles non-pointer values that implement Encoder
+// with a pointer receiver.
 func writeEncoderNoPtr(val reflect.Value, w *encbuf) error {
 	if !val.CanAddr() {
+		// We can't get the address. It would be possible to make the
+		// value addressable by creating a shallow copy, but this
+		// creates other problems so we're not doing it (yet).
+		//
+		// package json simply doesn't call MarshalJSON for cases like
+		// this, but encodes the value as if it didn't implement the
+		// interface. We don't want to handle it that way.
 		return fmt.Errorf("rlp: game over: unadressable value of type %v, EncodeRLP is pointer method", val.Type())
 	}
 	return val.Addr().Interface().(Encoder).EncodeRLP(w)
@@ -383,6 +492,9 @@ func writeEncoderNoPtr(val reflect.Value, w *encbuf) error {
 
 func writeInterface(val reflect.Value, w *encbuf) error {
 	if val.IsNil() {
+		// Write empty list. This is consistent with the previous RLP
+		// encoder that we had and should therefore avoid any
+		// problems.
 		w.str = append(w.str, 0xC0)
 		return nil
 	}
@@ -438,6 +550,7 @@ func makePtrWriter(typ reflect.Type) (writer, error) {
 		return nil, err
 	}
 
+	// determine nil pointer handler
 	var nilfunc func(*encbuf) error
 	kind := typ.Elem().Kind()
 	switch {
@@ -448,6 +561,8 @@ func makePtrWriter(typ reflect.Type) (writer, error) {
 		}
 	case kind == reflect.Struct || kind == reflect.Array:
 		nilfunc = func(w *encbuf) error {
+			// encoding the zero value of a struct/array could trigger
+			// infinite recursion, avoid that.
 			w.listEnd(w.list())
 			return nil
 		}
@@ -468,6 +583,8 @@ func makePtrWriter(typ reflect.Type) (writer, error) {
 	return writer, err
 }
 
+// putint writes i to the beginning of b in big endian byte
+// order, using the least number of bytes needed to represent i.
 func putint(b []byte, i uint64) (size int) {
 	switch {
 	case i < (1 << 8):
@@ -525,6 +642,7 @@ func putint(b []byte, i uint64) (size int) {
 	}
 }
 
+// intsize computes the minimum number of bytes required to store i.
 func intsize(i uint64) (size int) {
 	for size = 1; ; size++ {
 		if i >>= 8; i == 0 {

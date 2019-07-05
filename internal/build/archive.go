@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package build
 
 import (
@@ -12,11 +28,16 @@ import (
 )
 
 type Archive interface {
-
+	// Directory adds a new directory entry to the archive and sets the
+	// directory for subsequent calls to Header.
 	Directory(name string) error
 
+	// Header adds a new file to the archive. The file is added to the directory
+	// set by Directory. The content of the file must be written to the returned
+	// writer.
 	Header(os.FileInfo) (io.Writer, error)
 
+	// Close flushes the archive and closes the underlying file.
 	Close() error
 }
 
@@ -31,6 +52,7 @@ func NewArchive(file *os.File) (Archive, string) {
 	}
 }
 
+// AddFile appends an existing file to an archive.
 func AddFile(a Archive, file string) error {
 	fd, err := os.Open(file)
 	if err != nil {
@@ -51,6 +73,7 @@ func AddFile(a Archive, file string) error {
 	return nil
 }
 
+// WriteArchive creates an archive containing the given files.
 func WriteArchive(name string, files []string) (err error) {
 	archfd, err := os.Create(name)
 	if err != nil {
@@ -59,7 +82,7 @@ func WriteArchive(name string, files []string) (err error) {
 
 	defer func() {
 		archfd.Close()
-
+		// Remove the half-written archive on failure.
 		if err != nil {
 			os.Remove(name)
 		}

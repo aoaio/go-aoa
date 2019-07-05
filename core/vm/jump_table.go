@@ -1,15 +1,31 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package vm
 
 import (
 	"errors"
 	"math/big"
 
-	"github.com/Aurorachain/go-Aurora/params"
+	"github.com/Aurorachain/go-aoa/params"
 )
 
 type (
 	executionFunc       func(pc *uint64, env *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error)
-	gasFunc             func(params.GasTable, *EVM, *Contract, *Stack, *Memory, uint64) (uint64, error)
+	gasFunc             func(params.GasTable, *EVM, *Contract, *Stack, *Memory, uint64) (uint64, error) // last parameter is the requested memory size as a uint64
 	stackValidationFunc func(*Stack) error
 	memorySizeFunc      func(*Stack) *big.Int
 )
@@ -17,32 +33,34 @@ type (
 var errGasUintOverflow = errors.New("gas uint64 overflow")
 
 type operation struct {
-
+	// op is the operation function
 	execute executionFunc
-
+	// gasCost is the gas function and returns the gas required for execution
 	gasCost gasFunc
-
+	// validateStack validates the stack (size) for the operation
 	validateStack stackValidationFunc
-
+	// memorySize returns the memory size required for the operation
 	memorySize memorySizeFunc
 
-	halts   bool
-	jumps   bool
-	writes  bool
-	valid   bool
-	reverts bool
-	returns bool
+	halts   bool // indicates whether the operation should halt further execution
+	jumps   bool // indicates whether the program counter should not increment
+	writes  bool // determines whether this a state modifying operation
+	valid   bool // indication whether the retrieved operation is valid and known
+	reverts bool // determines whether the operation reverts state (implicitly halts)
+	returns bool // determines whether the operations sets the return data content
 }
 
 var (
-	frontierInstructionSet  = NewFrontierInstructionSet()
-	homesteadInstructionSet = NewHomesteadInstructionSet()
-	byzantiumInstructionSet = NewByzantiumInstructionSet()
+	frontierInstructionSet       = NewFrontierInstructionSet()
+	homesteadInstructionSet      = NewHomesteadInstructionSet()
+	byzantiumInstructionSet      = NewByzantiumInstructionSet()
 	constantinopleInstructionSet = NewConstantinopleInstructionSet()
 )
 
+// NewConstantinopleInstructionSet returns the frontier, homestead
+// byzantium and contantinople instructions.
 func NewConstantinopleInstructionSet() [256]operation {
-
+	// instructions that can be executed during the byzantium phase.
 	instructionSet := NewByzantiumInstructionSet()
 	instructionSet[SHL] = operation{
 		execute:       opSHL,
@@ -65,8 +83,10 @@ func NewConstantinopleInstructionSet() [256]operation {
 	return instructionSet
 }
 
+// NewByzantiumInstructionSet returns the frontier, homestead and
+// byzantium instructions.
 func NewByzantiumInstructionSet() [256]operation {
-
+	// instructions that can be executed during the homestead phase.
 	instructionSet := NewHomesteadInstructionSet()
 	instructionSet[STATICCALL] = operation{
 		execute:       opStaticCall,
@@ -101,6 +121,8 @@ func NewByzantiumInstructionSet() [256]operation {
 	return instructionSet
 }
 
+// NewHomesteadInstructionSet returns the frontier and homestead
+// instructions that can be executed during the homestead phase.
 func NewHomesteadInstructionSet() [256]operation {
 	instructionSet := NewFrontierInstructionSet()
 	instructionSet[DELEGATECALL] = operation{
@@ -114,6 +136,8 @@ func NewHomesteadInstructionSet() [256]operation {
 	return instructionSet
 }
 
+// NewFrontierInstructionSet returns the frontier instructions
+// that can be executed during the frontier phase.
 func NewFrontierInstructionSet() [256]operation {
 	return [256]operation{
 		STOP: {
@@ -951,6 +975,30 @@ func NewFrontierInstructionSet() [256]operation {
 			execute:       opAssetValue,
 			gasCost:       constGasFunc(GasQuickStep),
 			validateStack: makeStackFunc(0, 1),
+			valid:         true,
+		},
+		GETDELEGATEINFO: {
+			execute:       opGetCandidateVoteInfo,
+			gasCost:       constGasFunc(GasQuickStep),
+			validateStack: makeStackFunc(1, 1),
+			valid:         true,
+		},
+		GETDELEGATEINFOS: {
+			execute:       opGetCandidateVoteInfoFors,
+			gasCost:       constGasFunc(GasQuickStep),
+			validateStack: makeStackFunc(5, 1),
+			valid:         true,
+		},
+		GETDELEGATETOTALVOTE: { //GetDelegateTotalVote
+			execute:       opGetCandidateTotalVote,
+			gasCost:       constGasFunc(GasQuickStep),
+			validateStack: makeStackFunc(1, 1),
+			valid:         true,
+		},
+		ISDELEGATE: {
+			execute:       opIsDelegate,
+			gasCost:       constGasFunc(GasQuickStep),
+			validateStack: makeStackFunc(1, 1),
 			valid:         true,
 		},
 	}

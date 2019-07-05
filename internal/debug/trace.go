@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 //+build go1.5
 
 package debug
@@ -7,9 +23,10 @@ import (
 	"os"
 	"runtime/trace"
 
-	"github.com/Aurorachain/go-Aurora/log"
+	"github.com/Aurorachain/go-aoa/log"
 )
 
+// StartGoTrace turns on tracing, writing to the given file.
 func (h *HandlerT) StartGoTrace(file string) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -26,10 +43,11 @@ func (h *HandlerT) StartGoTrace(file string) error {
 	}
 	h.traceW = f
 	h.traceFile = file
-	log.Info("Go tracing started", "dump", h.traceFile)
+	log.Infof("Go tracing started, dump=%v", h.traceFile)
 	return nil
 }
 
+// StopTrace stops an ongoing trace.
 func (h *HandlerT) StopGoTrace() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -37,7 +55,7 @@ func (h *HandlerT) StopGoTrace() error {
 	if h.traceW == nil {
 		return errors.New("trace not in progress")
 	}
-	log.Info("Done writing Go trace", "dump", h.traceFile)
+	log.Infof("Done writing Go trace, dump=%v", h.traceFile)
 	h.traceW.Close()
 	h.traceW = nil
 	h.traceFile = ""

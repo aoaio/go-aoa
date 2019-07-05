@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package event
 
 import (
@@ -173,6 +189,8 @@ func TestFeedSubscribeBlockedPost(t *testing.T) {
 	sub2 := feed.Subscribe(ch2)
 	defer sub2.Unsubscribe()
 
+	// We're done when ch1 has received N times.
+	// The number of receives on ch2 depends on scheduling.
 	for i := 0; i < nsends; {
 		select {
 		case <-ch1:
@@ -196,6 +214,7 @@ func TestFeedUnsubscribeBlockedPost(t *testing.T) {
 		chans[i] = make(chan int, nsends)
 	}
 
+	// Queue up some Sends. None of these can make progress while bchan isn't read.
 	wg.Add(nsends)
 	for i := 0; i < nsends; i++ {
 		go func() {
@@ -203,15 +222,15 @@ func TestFeedUnsubscribeBlockedPost(t *testing.T) {
 			wg.Done()
 		}()
 	}
-
+	// Subscribe the other channels.
 	for i, ch := range chans {
 		subs[i] = feed.Subscribe(ch)
 	}
-
+	// Unsubscribe them again.
 	for _, sub := range subs {
 		sub.Unsubscribe()
 	}
-
+	// Unblock the Sends.
 	bsub.Unsubscribe()
 	wg.Wait()
 }
@@ -262,6 +281,7 @@ func BenchmarkFeedSend1000(b *testing.B) {
 		go subscriber(ch)
 	}
 
+	// The actual benchmark.
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if feed.Send(i) != nsubs {

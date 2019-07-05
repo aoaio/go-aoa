@@ -1,20 +1,36 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package types
 
 import (
 	"math/big"
 	"testing"
 
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/crypto"
-	"github.com/Aurorachain/go-Aurora/rlp"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/crypto"
+	"github.com/Aurorachain/go-aoa/rlp"
 )
 
 func TestEIP155Signing(t *testing.T) {
 	key, _ := crypto.GenerateKey()
 	addr := crypto.PubkeyToAddress(key.PublicKey)
 
-	signer := AuroraSigner{chainId:big.NewInt(18)}
-	tx, err := SignTx(NewTransaction(0, addr, new(big.Int), 0, new(big.Int), nil, 0, nil, nil,nil,nil, ""), signer, key)
+	signer := AuroraSigner{chainId: big.NewInt(18)}
+	tx, err := SignTx(NewTransaction(0, addr, new(big.Int), 0, new(big.Int), nil, 0, nil, nil, nil, nil, ""), signer, key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,8 +48,8 @@ func TestEIP155ChainId(t *testing.T) {
 	key, _ := crypto.GenerateKey()
 	addr := crypto.PubkeyToAddress(key.PublicKey)
 
-	signer :=AuroraSigner{chainId:big.NewInt(18)}
-	tx, err := SignTx(NewTransaction(0, addr, new(big.Int), 0, new(big.Int), nil, 0, nil, nil,nil,nil, ""), signer, key)
+	signer := AuroraSigner{chainId: big.NewInt(18)}
+	tx, err := SignTx(NewTransaction(0, addr, new(big.Int), 0, new(big.Int), nil, 0, nil, nil, nil, nil, ""), signer, key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +58,7 @@ func TestEIP155ChainId(t *testing.T) {
 		t.Error("expected chainId to be", signer.chainId, "got", tx.ChainId())
 	}
 
-	tx = NewTransaction(0, addr, new(big.Int), 0, new(big.Int), nil, 0, nil, nil,nil,nil,"")
+	tx = NewTransaction(0, addr, new(big.Int), 0, new(big.Int), nil, 0, nil, nil, nil, nil, "")
 	tx, err = SignTx(tx, AuroraSigner{}, key)
 	if err != nil {
 		t.Fatal(err)
@@ -54,7 +70,7 @@ func TestEIP155ChainId(t *testing.T) {
 }
 
 func TestEIP155SigningVitalik(t *testing.T) {
-
+	// Test vectors come from http://vitalik.ca/files/eip155_testvec.txt
 	for i, test := range []struct {
 		txRlp, addr string
 	}{
@@ -70,7 +86,7 @@ func TestEIP155SigningVitalik(t *testing.T) {
 		{"f867098504a817c809830334509435353535353535353535353535353535353535358202d98025a052f8f61201b2b11a78d6e866abc9c3db2ae8631fa656bfe5cb53668255367afba052f8f61201b2b11a78d6e866abc9c3db2ae8631fa656bfe5cb53668255367afb", "0x3c24d7329e92f84f08556ceb6df1cdb0104ca49f"},
 	} {
 
-		signer := AuroraSigner{chainId:big.NewInt(1)}
+		signer := AuroraSigner{chainId: big.NewInt(1)}
 
 		var tx *Transaction
 		err := rlp.DecodeBytes(common.Hex2Bytes(test.txRlp), &tx)
@@ -96,21 +112,21 @@ func TestEIP155SigningVitalik(t *testing.T) {
 func TestChainId(t *testing.T) {
 	key, _ := defaultTestKey()
 
-	tx := NewTransaction(0, common.Address{}, new(big.Int), 0, new(big.Int), nil, 0, nil, nil,nil,nil, "")
+	tx := NewTransaction(0, common.Address{}, new(big.Int), 0, new(big.Int), nil, 0, nil, nil, nil, nil, "")
 
 	var err error
 
-	tx, err = SignTx(tx, AuroraSigner{chainId:big.NewInt(1)}, key)
+	tx, err = SignTx(tx, AuroraSigner{chainId: big.NewInt(1)}, key)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = Sender(AuroraSigner{chainId:big.NewInt(2)}, tx)
+	_, err = Sender(AuroraSigner{chainId: big.NewInt(2)}, tx)
 	if err != ErrInvalidChainId {
 		t.Error("expected error:", ErrInvalidChainId)
 	}
 
-	_, err = Sender(AuroraSigner{chainId:big.NewInt(1)}, tx)
+	_, err = Sender(AuroraSigner{chainId: big.NewInt(1)}, tx)
 	if err != nil {
 		t.Error("expected no error")
 	}

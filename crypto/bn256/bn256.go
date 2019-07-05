@@ -1,3 +1,19 @@
+// Copyright 2012 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// Package bn256 implements a particular bilinear group at the 128-bit security level.
+//
+// Bilinear groups are the basis of many of the new cryptographic protocols
+// that have been proposed over the past decade. They consist of a triplet of
+// groups (G₁, G₂ and GT) such that there exists a function e(g₁ˣ,g₂ʸ)=gTˣʸ
+// (where gₓ is a generator of the respective group). That function is called
+// a pairing function.
+//
+// This package specifically implements the Optimal Ate pairing over a 256-bit
+// Barreto-Naehrig curve as described in
+// http://cryptojedi.org/papers/dclxvi-20100714.pdf. Its output is compatible
+// with the implementation described in that paper.
 package bn256
 
 import (
@@ -6,10 +22,16 @@ import (
 	"math/big"
 )
 
+// BUG(agl): this implementation is not constant time.
+// TODO(agl): keep GF(p²) elements in Mongomery form.
+
+// G1 is an abstract cyclic group. The zero value is suitable for use as the
+// output of an operation, but cannot be used as an input.
 type G1 struct {
 	p *curvePoint
 }
 
+// RandomG1 returns x and g₁ˣ where x is a random, non-zero number read from r.
 func RandomG1(r io.Reader) (*big.Int, *G1, error) {
 	var k *big.Int
 	var err error
@@ -31,10 +53,13 @@ func (g *G1) String() string {
 	return "bn256.G1" + g.p.String()
 }
 
+// CurvePoints returns p's curve points in big integer
 func (e *G1) CurvePoints() (*big.Int, *big.Int, *big.Int, *big.Int) {
 	return e.p.x, e.p.y, e.p.z, e.p.t
 }
 
+// ScalarBaseMult sets e to g*k where g is the generator of the group and
+// then returns e.
 func (e *G1) ScalarBaseMult(k *big.Int) *G1 {
 	if e.p == nil {
 		e.p = newCurvePoint(nil)
@@ -43,6 +68,7 @@ func (e *G1) ScalarBaseMult(k *big.Int) *G1 {
 	return e
 }
 
+// ScalarMult sets e to a*k and then returns e.
 func (e *G1) ScalarMult(a *G1, k *big.Int) *G1 {
 	if e.p == nil {
 		e.p = newCurvePoint(nil)
@@ -51,6 +77,8 @@ func (e *G1) ScalarMult(a *G1, k *big.Int) *G1 {
 	return e
 }
 
+// Add sets e to a+b and then returns e.
+// BUG(agl): this function is not complete: a==b fails.
 func (e *G1) Add(a, b *G1) *G1 {
 	if e.p == nil {
 		e.p = newCurvePoint(nil)
@@ -59,6 +87,7 @@ func (e *G1) Add(a, b *G1) *G1 {
 	return e
 }
 
+// Neg sets e to -a and then returns e.
 func (e *G1) Neg(a *G1) *G1 {
 	if e.p == nil {
 		e.p = newCurvePoint(nil)
@@ -67,12 +96,14 @@ func (e *G1) Neg(a *G1) *G1 {
 	return e
 }
 
+// Marshal converts n to a byte slice.
 func (n *G1) Marshal() []byte {
 	n.p.MakeAffine(nil)
 
 	xBytes := new(big.Int).Mod(n.p.x, P).Bytes()
 	yBytes := new(big.Int).Mod(n.p.y, P).Bytes()
 
+	// Each value is a 256-bit number.
 	const numBytes = 256 / 8
 
 	ret := make([]byte, numBytes*2)
@@ -82,8 +113,10 @@ func (n *G1) Marshal() []byte {
 	return ret
 }
 
+// Unmarshal sets e to the result of converting the output of Marshal back into
+// a group element and then returns e.
 func (e *G1) Unmarshal(m []byte) (*G1, bool) {
-
+	// Each value is a 256-bit number.
 	const numBytes = 256 / 8
 
 	if len(m) != 2*numBytes {
@@ -98,7 +131,7 @@ func (e *G1) Unmarshal(m []byte) (*G1, bool) {
 	e.p.y.SetBytes(m[1*numBytes : 2*numBytes])
 
 	if e.p.x.Sign() == 0 && e.p.y.Sign() == 0 {
-
+		// This is the point at infinity.
 		e.p.y.SetInt64(1)
 		e.p.z.SetInt64(0)
 		e.p.t.SetInt64(0)
@@ -114,10 +147,13 @@ func (e *G1) Unmarshal(m []byte) (*G1, bool) {
 	return e, true
 }
 
+// G2 is an abstract cyclic group. The zero value is suitable for use as the
+// output of an operation, but cannot be used as an input.
 type G2 struct {
 	p *twistPoint
 }
 
+// RandomG1 returns x and g₂ˣ where x is a random, non-zero number read from r.
 func RandomG2(r io.Reader) (*big.Int, *G2, error) {
 	var k *big.Int
 	var err error
@@ -139,10 +175,14 @@ func (g *G2) String() string {
 	return "bn256.G2" + g.p.String()
 }
 
+// CurvePoints returns the curve points of p which includes the real
+// and imaginary parts of the curve point.
 func (e *G2) CurvePoints() (*gfP2, *gfP2, *gfP2, *gfP2) {
 	return e.p.x, e.p.y, e.p.z, e.p.t
 }
 
+// ScalarBaseMult sets e to g*k where g is the generator of the group and
+// then returns out.
 func (e *G2) ScalarBaseMult(k *big.Int) *G2 {
 	if e.p == nil {
 		e.p = newTwistPoint(nil)
@@ -151,6 +191,7 @@ func (e *G2) ScalarBaseMult(k *big.Int) *G2 {
 	return e
 }
 
+// ScalarMult sets e to a*k and then returns e.
 func (e *G2) ScalarMult(a *G2, k *big.Int) *G2 {
 	if e.p == nil {
 		e.p = newTwistPoint(nil)
@@ -159,6 +200,8 @@ func (e *G2) ScalarMult(a *G2, k *big.Int) *G2 {
 	return e
 }
 
+// Add sets e to a+b and then returns e.
+// BUG(agl): this function is not complete: a==b fails.
 func (e *G2) Add(a, b *G2) *G2 {
 	if e.p == nil {
 		e.p = newTwistPoint(nil)
@@ -167,6 +210,7 @@ func (e *G2) Add(a, b *G2) *G2 {
 	return e
 }
 
+// Marshal converts n into a byte slice.
 func (n *G2) Marshal() []byte {
 	n.p.MakeAffine(nil)
 
@@ -175,6 +219,7 @@ func (n *G2) Marshal() []byte {
 	yxBytes := new(big.Int).Mod(n.p.y.x, P).Bytes()
 	yyBytes := new(big.Int).Mod(n.p.y.y, P).Bytes()
 
+	// Each value is a 256-bit number.
 	const numBytes = 256 / 8
 
 	ret := make([]byte, numBytes*4)
@@ -186,8 +231,10 @@ func (n *G2) Marshal() []byte {
 	return ret
 }
 
+// Unmarshal sets e to the result of converting the output of Marshal back into
+// a group element and then returns e.
 func (e *G2) Unmarshal(m []byte) (*G2, bool) {
-
+	// Each value is a 256-bit number.
 	const numBytes = 256 / 8
 
 	if len(m) != 4*numBytes {
@@ -207,7 +254,7 @@ func (e *G2) Unmarshal(m []byte) (*G2, bool) {
 		e.p.x.y.Sign() == 0 &&
 		e.p.y.x.Sign() == 0 &&
 		e.p.y.y.Sign() == 0 {
-
+		// This is the point at infinity.
 		e.p.y.SetOne()
 		e.p.z.SetZero()
 		e.p.t.SetZero()
@@ -223,6 +270,8 @@ func (e *G2) Unmarshal(m []byte) (*G2, bool) {
 	return e, true
 }
 
+// GT is an abstract cyclic group. The zero value is suitable for use as the
+// output of an operation, but cannot be used as an input.
 type GT struct {
 	p *gfP12
 }
@@ -231,6 +280,7 @@ func (g *GT) String() string {
 	return "bn256.GT" + g.p.String()
 }
 
+// ScalarMult sets e to a*k and then returns e.
 func (e *GT) ScalarMult(a *GT, k *big.Int) *GT {
 	if e.p == nil {
 		e.p = newGFp12(nil)
@@ -239,6 +289,7 @@ func (e *GT) ScalarMult(a *GT, k *big.Int) *GT {
 	return e
 }
 
+// Add sets e to a+b and then returns e.
 func (e *GT) Add(a, b *GT) *GT {
 	if e.p == nil {
 		e.p = newGFp12(nil)
@@ -247,6 +298,7 @@ func (e *GT) Add(a, b *GT) *GT {
 	return e
 }
 
+// Neg sets e to -a and then returns e.
 func (e *GT) Neg(a *GT) *GT {
 	if e.p == nil {
 		e.p = newGFp12(nil)
@@ -255,6 +307,7 @@ func (e *GT) Neg(a *GT) *GT {
 	return e
 }
 
+// Marshal converts n into a byte slice.
 func (n *GT) Marshal() []byte {
 	n.p.Minimal()
 
@@ -271,6 +324,7 @@ func (n *GT) Marshal() []byte {
 	yzxBytes := n.p.y.z.x.Bytes()
 	yzyBytes := n.p.y.z.y.Bytes()
 
+	// Each value is a 256-bit number.
 	const numBytes = 256 / 8
 
 	ret := make([]byte, numBytes*12)
@@ -290,8 +344,10 @@ func (n *GT) Marshal() []byte {
 	return ret
 }
 
+// Unmarshal sets e to the result of converting the output of Marshal back into
+// a group element and then returns e.
 func (e *GT) Unmarshal(m []byte) (*GT, bool) {
-
+	// Each value is a 256-bit number.
 	const numBytes = 256 / 8
 
 	if len(m) != 12*numBytes {
@@ -318,10 +374,12 @@ func (e *GT) Unmarshal(m []byte) (*GT, bool) {
 	return e, true
 }
 
+// Pair calculates an Optimal Ate pairing.
 func Pair(g1 *G1, g2 *G2) *GT {
 	return &GT{optimalAte(g2.p, g1.p, new(bnPool))}
 }
 
+// PairingCheck calculates the Optimal Ate pairing for a set of points.
 func PairingCheck(a []*G1, b []*G2) bool {
 	pool := new(bnPool)
 
@@ -340,6 +398,8 @@ func PairingCheck(a []*G1, b []*G2) bool {
 	return ret.IsOne()
 }
 
+// bnPool implements a tiny cache of *big.Int objects that's used to reduce the
+// number of allocations made during processing.
 type bnPool struct {
 	bns   []*big.Int
 	count int

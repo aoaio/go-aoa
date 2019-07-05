@@ -1,11 +1,21 @@
+// Copyright 2012 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package bn256
+
+// For details of the algorithms used, see "Multiplication and Squaring on
+// Pairing-Friendly Fields, Devegili et al.
+// http://eprint.iacr.org/2006/471.pdf.
 
 import (
 	"math/big"
 )
 
+// gfP6 implements the field of size p⁶ as a cubic extension of gfP2 where τ³=ξ
+// and ξ=i+9.
 type gfP6 struct {
-	x, y, z *gfP2 
+	x, y, z *gfP2 // value is xτ² + yτ + z
 }
 
 func newGFp6(pool *bnPool) *gfP6 {
@@ -74,10 +84,11 @@ func (e *gfP6) Frobenius(a *gfP6, pool *bnPool) *gfP6 {
 	return e
 }
 
+// FrobeniusP2 computes (xτ²+yτ+z)^(p²) = xτ^(2p²) + yτ^(p²) + z
 func (e *gfP6) FrobeniusP2(a *gfP6) *gfP6 {
-
+	// τ^(2p²) = τ²τ^(2p²-2) = τ²ξ^((2p²-2)/3)
 	e.x.MulScalar(a.x, xiTo2PSquaredMinus2Over3)
-
+	// τ^(p²) = ττ^(p²-1) = τξ^((p²-1)/3)
 	e.y.MulScalar(a.y, xiToPSquaredMinus1Over3)
 	e.z.Set(a.z)
 	return e
@@ -105,6 +116,9 @@ func (e *gfP6) Double(a *gfP6) *gfP6 {
 }
 
 func (e *gfP6) Mul(a, b *gfP6, pool *bnPool) *gfP6 {
+	// "Multiplication and Squaring on Pairing-Friendly Fields"
+	// Section 4, Karatsuba method.
+	// http://eprint.iacr.org/2006/471.pdf
 
 	v0 := newGFp2(pool)
 	v0.Mul(a.z, b.z, pool)
@@ -171,6 +185,7 @@ func (e *gfP6) MulGFP(a *gfP6, b *big.Int) *gfP6 {
 	return e
 }
 
+// MulTau computes τ·(aτ²+bτ+c) = bτ²+cτ+aξ
 func (e *gfP6) MulTau(a *gfP6, pool *bnPool) {
 	tz := newGFp2(pool)
 	tz.MulXi(a.x, pool)
@@ -224,7 +239,19 @@ func (e *gfP6) Square(a *gfP6, pool *bnPool) *gfP6 {
 }
 
 func (e *gfP6) Invert(a *gfP6, pool *bnPool) *gfP6 {
+	// See "Implementing cryptographic pairings", M. Scott, section 3.2.
+	// ftp://136.206.11.249/pub/crypto/pairings.pdf
 
+	// Here we can give a short explanation of how it works: let j be a cubic root of
+	// unity in GF(p²) so that 1+j+j²=0.
+	// Then (xτ² + yτ + z)(xj²τ² + yjτ + z)(xjτ² + yj²τ + z)
+	// = (xτ² + yτ + z)(Cτ²+Bτ+A)
+	// = (x³ξ²+y³ξ+z³-3ξxyz) = F is an element of the base field (the norm).
+	//
+	// On the other hand (xj²τ² + yjτ + z)(xjτ² + yj²τ + z)
+	// = τ²(y²-ξxz) + τ(ξx²-yz) + (z²-ξxy)
+	//
+	// So that's why A = (z²-ξxy), B = (ξx²-yz), C = (y²-ξxz)
 	t1 := newGFp2(pool)
 
 	A := newGFp2(pool)

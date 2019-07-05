@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package discv5
 
 import (
@@ -6,8 +22,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/crypto"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/crypto"
 )
 
 func TestNetwork_Lookup(t *testing.T) {
@@ -19,6 +35,11 @@ func TestNetwork_Lookup(t *testing.T) {
 	lookupTestnet.net = network
 	defer network.Close()
 
+	// lookup on empty table returns no nodes
+	// if results := network.Lookup(lookupTestnet.target, false); len(results) > 0 {
+	// 	t.Fatalf("lookup on empty table returned %d results: %#v", len(results), results)
+	// }
+	// seed table with initial node (otherwise lookup will terminate immediately)
 	seeds := []*Node{NewNode(lookupTestnet.dists[256][0], net.IP{10, 0, 2, 99}, lowPort+256, 999)}
 	if err := network.SetFallbackNodes(seeds); err != nil {
 		t.Fatal(err)
@@ -39,9 +60,11 @@ func TestNetwork_Lookup(t *testing.T) {
 	if !sortedByDistanceTo(lookupTestnet.targetSha, results) {
 		t.Errorf("result set not sorted by distance to target")
 	}
-
+	// TODO: check result nodes are actually closest
 }
 
+// This is the test network for the Lookup test.
+// The nodes were obtained by running testnet.mine with a random NodeID as target.
 var lookupTestnet = &preminedTestnet{
 	target:    MustHexID("166aea4f556532c6d34e8b740e5d314af7e9ac0ca79833bd751d6b665f12dfd38ec563c363b32f02aef4a80b44fd3def94612d497b99cb5f17fd24de454927ec"),
 	targetSha: common.Hash{0x5c, 0x94, 0x4e, 0xe5, 0x1c, 0x5a, 0xe9, 0xf7, 0x2a, 0x95, 0xec, 0xcb, 0x8a, 0xed, 0x3, 0x74, 0xee, 0xcb, 0x51, 0x19, 0xd7, 0x20, 0xcb, 0xea, 0x68, 0x13, 0xe8, 0xe0, 0xd6, 0xad, 0x92, 0x61},
@@ -237,7 +260,7 @@ var lookupTestnet = &preminedTestnet{
 
 type preminedTestnet struct {
 	target    NodeID
-	targetSha common.Hash 
+	targetSha common.Hash // sha3(target)
 	dists     [hashBits + 1][]NodeID
 	net       *Network
 }
@@ -247,7 +270,8 @@ func (tn *preminedTestnet) sendFindnode(to *Node, target NodeID) {
 }
 
 func (tn *preminedTestnet) sendFindnodeHash(to *Node, target common.Hash) {
-
+	// current log distance is encoded in port number
+	// fmt.Println("findnode query at dist", toaddr.Port)
 	if to.UDP <= lowPort {
 		panic("query to node at or below distance 0")
 	}
@@ -269,9 +293,10 @@ func (tn *preminedTestnet) send(to *Node, ptype nodeEvent, data interface{}) (ha
 	case pingPacket:
 		injectResponse(tn.net, to, pongPacket, &pong{ReplyTok: []byte{1}})
 	case pongPacket:
-
+		// ignored
 	case findnodeHashPacket:
-
+		// current log distance is encoded in port number
+		// fmt.Println("findnode query at dist", toaddr.Port-lowPort)
 		if to.UDP <= lowPort {
 			panic("query to node at or below  distance 0")
 		}
@@ -309,6 +334,8 @@ func (*preminedTestnet) localAddr() *net.UDPAddr {
 	return &net.UDPAddr{IP: net.ParseIP("10.0.1.1"), Port: 40000}
 }
 
+// mine generates a testnet struct literal with nodes at
+// various distances to the given target.
 func (n *preminedTestnet) mine(target NodeID) {
 	n.target = target
 	n.targetSha = crypto.Keccak256Hash(n.target[:])

@@ -1,11 +1,21 @@
+// Copyright 2012 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package bn256
+
+// For details of the algorithms used, see "Multiplication and Squaring on
+// Pairing-Friendly Fields, Devegili et al.
+// http://eprint.iacr.org/2006/471.pdf.
 
 import (
 	"math/big"
 )
 
+// gfP2 implements a field of size p² as a quadratic extension of the base
+// field where i²=-1.
 type gfP2 struct {
-	x, y *big.Int
+	x, y *big.Int // value is xi+y.
 }
 
 func newGFp2(pool *bnPool) *gfP2 {
@@ -114,6 +124,8 @@ func (c *gfP2) Exp(a *gfP2, power *big.Int, pool *bnPool) *gfP2 {
 	return c
 }
 
+// See "Multiplication and Squaring in Pairing-Friendly Fields",
+// http://eprint.iacr.org/2006/471.pdf
 func (e *gfP2) Mul(a, b *gfP2, pool *bnPool) *gfP2 {
 	tx := pool.Get().Mul(a.x, b.y)
 	t := pool.Get().Mul(b.x, a.y)
@@ -139,8 +151,9 @@ func (e *gfP2) MulScalar(a *gfP2, b *big.Int) *gfP2 {
 	return e
 }
 
+// MulXi sets e=ξa where ξ=i+9 and then returns e.
 func (e *gfP2) MulXi(a *gfP2, pool *bnPool) *gfP2 {
-
+	// (xi+y)(i+3) = (9x+y)i+(9y-x)
 	tx := pool.Get().Lsh(a.x, 3)
 	tx.Add(tx, a.x)
 	tx.Add(tx, a.y)
@@ -159,7 +172,8 @@ func (e *gfP2) MulXi(a *gfP2, pool *bnPool) *gfP2 {
 }
 
 func (e *gfP2) Square(a *gfP2, pool *bnPool) *gfP2 {
-
+	// Complex squaring algorithm:
+	// (xi+b)² = (x+y)(y-x) + 2*i*x*y
 	t1 := pool.Get().Sub(a.y, a.x)
 	t2 := pool.Get().Add(a.x, a.y)
 	ty := pool.Get().Mul(t1, t2)
@@ -179,7 +193,8 @@ func (e *gfP2) Square(a *gfP2, pool *bnPool) *gfP2 {
 }
 
 func (e *gfP2) Invert(a *gfP2, pool *bnPool) *gfP2 {
-
+	// See "Implementing cryptographic pairings", M. Scott, section 3.2.
+	// ftp://136.206.11.249/pub/crypto/pairings.pdf
 	t := pool.Get()
 	t.Mul(a.y, a.y)
 	t2 := pool.Get()

@@ -1,18 +1,38 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package abi
 
 import (
 	"math/big"
 	"reflect"
 
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/common/math"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/common/math"
 )
 
+// packBytesSlice packs the given bytes as [L, V] as the canonical representation
+// bytes slice
 func packBytesSlice(bytes []byte, l int) []byte {
 	len := packNum(reflect.ValueOf(l))
 	return append(len, common.RightPadBytes(bytes, (l+31)/32*32)...)
 }
 
+// packElement packs the given reflect value according to the abi specification in
+// t.
 func packElement(t Type, reflectValue reflect.Value) []byte {
 	switch t.T {
 	case IntTy, UintTy:
@@ -45,6 +65,7 @@ func packElement(t Type, reflectValue reflect.Value) []byte {
 	}
 }
 
+// packNum packs the given number (using the reflect value) and will cast it to appropriate number representation
 func packNum(value reflect.Value) []byte {
 	switch kind := value.Kind(); kind {
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:

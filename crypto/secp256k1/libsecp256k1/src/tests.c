@@ -1,7 +1,7 @@
 /**********************************************************************
  * Copyright (c) 2013, 2014, 2015 Pieter Wuille, Gregory Maxwell      *
  * Distributed under the MIT software license, see the accompanying   *
- * file COPYING or http:
+ * file COPYING or http://www.opensource.org/licenses/mit-license.php.*
  **********************************************************************/
 
 #if defined HAVE_CONFIG_H
@@ -2079,7 +2079,7 @@ void test_add_neg_y_diff_x(void) {
      * of the sum to be wrong (since infinity has no xy coordinates).
      * HOWEVER, if the x-coordinates are different, infinity is the
      * wrong answer, and such degeneracies are exposed. This is the
-     * root of https:
+     * root of https://github.com/bitcoin-core/secp256k1/issues/257
      * which this test is a regression test for.
      *
      * These points were generated in sage as
@@ -4301,6 +4301,7 @@ void test_ecdsa_edge_cases(void) {
         CHECK(memcmp(nonce2, nonce4, 32) != 0);
         CHECK(memcmp(nonce3, nonce4, 32) != 0);
     }
+
 
     /* Privkey export where pubkey is the point at infinity. */
     {

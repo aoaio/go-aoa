@@ -1,13 +1,32 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package core
 
 import (
 	"bytes"
+	"container/heap"
 	"encoding/json"
 	"fmt"
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/common/hexutil"
-	"github.com/Aurorachain/go-Aurora/crypto"
-	"github.com/Aurorachain/go-Aurora/metrics"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/common/hexutil"
+	"github.com/Aurorachain/go-aoa/core/types"
+	"github.com/Aurorachain/go-aoa/crypto"
+	"github.com/Aurorachain/go-aoa/metrics"
+	"github.com/Aurorachain/go-aoa/rlp"
 	"io"
 	"io/ioutil"
 	"math/big"
@@ -15,21 +34,18 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 	"unsafe"
-	"container/heap"
-	"sort"
-	"github.com/Aurorachain/go-Aurora/core/types"
-	"github.com/Aurorachain/go-Aurora/rlp"
 )
 
 const (
-
-	url = "http://127.0.0.1:8545"
+	//url = "http://10.23.1.112:8989"
+	url     = "http://127.0.0.1:8545"
 	jsonrpc = "2.0"
 )
 
@@ -66,6 +82,12 @@ var wg sync.WaitGroup
 
 func TestNewTxPool(t *testing.T) {
 	runtime.GOMAXPROCS(4)
+	//result, err := netPeerCount(2)
+	//if err == nil {
+	//	fmt.Println(result)
+	//}else{
+	//	fmt.Errorf("error:%v",err)
+	//}
 
 	var trx trx
 	from := []string{"0x0ac71830f52bda2046583d7cb2df07855922f74a",
@@ -90,7 +112,7 @@ func TestNewTxPool(t *testing.T) {
 					} else {
 						trx.To = txTo
 					}
-					value := 10000000000000000
+					value := 10000000000000000 // 1 AOA
 					value += count
 					trx.Value = fmt.Sprintf("%#x", value)
 					trx.Action = 0
@@ -103,7 +125,7 @@ func TestNewTxPool(t *testing.T) {
 		wg.Wait()
 		end := time.Now()
 		useTime := end.Sub(start).Seconds()
-		fmt.Println("%v transaction a second", useTime/float64(count))
+		fmt.Println("transaction a second", useTime/float64(count))
 	}
 }
 func aoaSendTransacion(id int, trx trx) {
@@ -118,7 +140,7 @@ func aoaSendTransacion(id int, trx trx) {
 	if err == nil {
 		fmt.Println(result)
 	} else {
-
+		//time.Sleep(10 * time.Second)
 		fmt.Errorf("error:%v", err)
 	}
 	wg.Done()
@@ -161,7 +183,7 @@ func TestContractCallBench(t *testing.T) {
 			copy(datas[0:4], sha3FuncSig[:4])
 
 			var k common.Hash = common.BigToHash(kbase.Add(kbase, new(big.Int).SetInt64(x)))
-
+			//让 v == k ，直接copy到结果
 			copy(datas[4:36], k.Bytes())
 			copy(datas[36:], k.Bytes())
 			data := hexutil.Encode(datas)
@@ -169,7 +191,7 @@ func TestContractCallBench(t *testing.T) {
 
 			var trx fulltrx
 			trx.From = "0xdefee9edbf3a6da3a5bb96d006b86ac884d14f64"
-			trx.To = "0x108c73bd4d3e2936de4125ad201bd89b47135929"
+			trx.To = "0x108c73bd4d3e2936de4125ad201bd89b47135929" //合约地址
 			trx.Gas = "0x1000000"
 
 			trx.Data = data
@@ -258,7 +280,7 @@ func TestDeleteBody(t *testing.T) {
 			fmt.Println(err)
 			return
 		}
-
+		//fmt.Println(res)
 		result := new(rpcRes)
 		err = json.Unmarshal([]byte(res), result)
 		if err != nil {
@@ -357,8 +379,8 @@ func TestAddresssByHeartbeat_Len(t *testing.T) {
 	fmt.Println(ss)
 }
 
-func TestGetTransaction(t *testing.T)  {
-	s := "aoalxyz111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111"
+func TestGetTransaction(t *testing.T) {
+	s := "aoalxyz111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111黎"
 	fmt.Println(len(s))
 }
 

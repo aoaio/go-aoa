@@ -1,14 +1,30 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package light
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/core/state"
-	"github.com/Aurorachain/go-Aurora/core/types"
-	"github.com/Aurorachain/go-Aurora/crypto"
-	"github.com/Aurorachain/go-Aurora/trie"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/core/state"
+	"github.com/Aurorachain/go-aoa/core/types"
+	"github.com/Aurorachain/go-aoa/crypto"
+	"github.com/Aurorachain/go-aoa/trie"
 )
 
 func NewState(ctx context.Context, head *types.Header, odr OdrBackend) *state.StateDB {
@@ -67,19 +83,19 @@ func (db *odrDatabase) ContractCodeSize(addrHash, codeHash common.Hash) (int, er
 	return len(code), err
 }
 
-func (db *odrDatabase) ContractAbi(addrHash, codeHash common.Hash) (string, error)  {
+func (db *odrDatabase) ContractAbi(addrHash, codeHash common.Hash) (string, error) {
 	if codeHash == sha3_nil {
 		return "", nil
 	}
 	if abibytes, err := db.backend.Database().Get(state.AbiKey(codeHash.Bytes())); err == nil {
 		return string(abibytes), nil
 	}
-
-	return "",nil
+	//待实现ODR请求。由于目前整体未实现轻同步，这里也暂不处理。
+	return "", nil
 }
 
 func (db *odrDatabase) AssetData(addrHash, assetHash common.Hash) ([]byte, error) {
-
+	//use ContractCode directory
 	return db.ContractCode(addrHash, assetHash)
 }
 
@@ -135,6 +151,8 @@ func (t *odrTrie) GetKey(sha []byte) []byte {
 	return nil
 }
 
+// do tries and retries to execute a function until it returns with no error or
+// an error type other than MissingNodeError
 func (t *odrTrie) do(key []byte, fn func() error) error {
 	for {
 		var err error
@@ -162,7 +180,7 @@ type nodeIterator struct {
 
 func newNodeIterator(t *odrTrie, startkey []byte) trie.NodeIterator {
 	it := &nodeIterator{t: t}
-
+	// Open the actual non-ODR trie if that hasn't happened yet.
 	if t.trie == nil {
 		it.do(func() error {
 			t, err := trie.New(t.id.Root, t.db.backend.Database())
@@ -188,6 +206,7 @@ func (it *nodeIterator) Next(descend bool) bool {
 	return ok
 }
 
+// do runs fn and attempts to fill in missing nodes by retrieving.
 func (it *nodeIterator) do(fn func() error) {
 	var lasthash common.Hash
 	for {
@@ -217,10 +236,10 @@ func (it *nodeIterator) Error() error {
 
 func nibblesToKey(nib []byte) []byte {
 	if len(nib) > 0 && nib[len(nib)-1] == 0x10 {
-		nib = nib[:len(nib)-1] 
+		nib = nib[:len(nib)-1] // drop terminator
 	}
 	if len(nib)&1 == 1 {
-		nib = append(nib, 0) 
+		nib = append(nib, 0) // make even
 	}
 	key := make([]byte, len(nib)/2)
 	for bi, ni := 0, 0; ni < len(nib); bi, ni = bi+1, ni+2 {

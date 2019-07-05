@@ -6,6 +6,7 @@
 #include "include/secp256k1_ecdh.h"
 #include "include/secp256k1_recovery.h"
 
+
 SECP256K1_API jlong JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1ctx_1clone
   (JNIEnv* env, jclass classObject, jlong ctx_l)
 {

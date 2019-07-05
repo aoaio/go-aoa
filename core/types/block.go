@@ -1,12 +1,29 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
+// Package walletType contains data walletType related to Aurora consensus.
 package types
 
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/common/hexutil"
-	"github.com/Aurorachain/go-Aurora/crypto/sha3"
-	"github.com/Aurorachain/go-Aurora/rlp"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/common/hexutil"
+	"github.com/Aurorachain/go-aoa/crypto/sha3"
+	"github.com/Aurorachain/go-aoa/rlp"
 	"io"
 	"math/big"
 	"sort"
@@ -19,61 +36,76 @@ var (
 	BlockDifficult = common.Big1
 )
 
+// A BlockNonce is a 64-bit hash which proves (combined with the
+// mix-hash) that a sufficient amount of computation has been carried
+// out on a block.
 type BlockNonce [8]byte
 
+// EncodeNonce converts the given integer to a block nonce.
 func EncodeNonce(i uint64) BlockNonce {
 	var n BlockNonce
 	binary.BigEndian.PutUint64(n[:], i)
 	return n
 }
 
+// Uint64 returns the integer value of a block nonce.
 func (n BlockNonce) Uint64() uint64 {
 	return binary.BigEndian.Uint64(n[:])
 }
 
+// MarshalText encodes n as a hex string with 0x prefix.
 func (n BlockNonce) MarshalText() ([]byte, error) {
 	return hexutil.Bytes(n[:]).MarshalText()
 }
 
+// UnmarshalText implements encoding.TextUnmarshaler.
 func (n *BlockNonce) UnmarshalText(input []byte) error {
 	return hexutil.UnmarshalFixedText("BlockNonce", input, n[:])
 }
 
+//go:generate gencodec -type Header -field-override headerMarshaling -out gen_header_json.go
+
+// Header represents a block header in the Aurora blockchain.
 type Header struct {
 	ParentHash common.Hash `json:"parentHash"       gencodec:"required"`
-
+	// UncleHash    common.Hash    `json:"sha3Uncles"       gencodec:"required"`
 	Coinbase    common.Address `json:"miner"            gencodec:"required"`
 	Root        common.Hash    `json:"stateRoot"        gencodec:"required"`
 	TxHash      common.Hash    `json:"transactionsRoot" gencodec:"required"`
 	ReceiptHash common.Hash    `json:"receiptsRoot"     gencodec:"required"`
 	Bloom       Bloom          `json:"logsBloom"        gencodec:"required"`
-
+	// Difficulty   *big.Int       `json:"difficulty"       gencodec:"required"`
 	Number   *big.Int `json:"number"           gencodec:"required"`
 	GasLimit uint64   `json:"gasLimit"         gencodec:"required"`
 	GasUsed  uint64   `json:"gasUsed"          gencodec:"required"`
 	Time     *big.Int `json:"timestamp"        gencodec:"required"`
 	Extra    []byte   `json:"extraData"        gencodec:"required"`
-
+	// MixDigest    common.Hash    `json:"mixHash"          gencodec:"required"` // pow 相关,可以干掉
+	// Nonce              BlockNonce  `json:"nonce"            gencodec:"required"` // pow 相关,可以干掉
 	AgentName          []byte      `json:"agentName"        gencodec:"required"`
-	DelegateRoot       common.Hash `json:"delegateRoot"     gencodec:"required"`
-	ShuffleHash        common.Hash `json:"shuffleHash"      gencodec:"required"`
-	ShuffleBlockNumber *big.Int    `json:"shuffleBlockNumber"        gencodec:"required"`
+	DelegateRoot       common.Hash `json:"delegateRoot"     gencodec:"required"`          // delegate root
+	ShuffleHash        common.Hash `json:"shuffleHash"      gencodec:"required"`          // 洗牌的101列表的hash
+	ShuffleBlockNumber *big.Int    `json:"shuffleBlockNumber"        gencodec:"required"` // 洗牌的块高
 }
 
+// field type overrides for gencodec
 type headerMarshaling struct {
-
+	//Difficulty *hexutil.Big
 	Number   *hexutil.Big
 	GasLimit hexutil.Uint64
 	GasUsed  hexutil.Uint64
 	Time     *hexutil.Big
 	Extra    hexutil.Bytes
-	Hash     common.Hash `json:"hash"`
+	Hash     common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
 }
 
+// Hash returns the block hash of the header, which is simply the keccak256 hash of its
+// RLP encoding.
 func (h *Header) Hash() common.Hash {
 	return rlpHash(h)
 }
 
+// HashNoNonce returns the hash which is used as input for the proof-of-work search.
 func (h *Header) HashNoNonce() common.Hash {
 	return rlpHash([]interface{}{
 		h.ParentHash,
@@ -101,48 +133,74 @@ func rlpHash(x interface{}) (h common.Hash) {
 	return h
 }
 
+// Body is a simple (mutable, non-safe) data container for storing and moving
+// a block's data contents (transactions and uncles) together.
 type Body struct {
 	Transactions []*Transaction
-
+	// Uncles       []*Header
 }
 
+// Block represents an entire block in the Aurora blockchain.
 type Block struct {
 	header       *Header
 	transactions Transactions
 
+	// caches
 	hash atomic.Value
 	size atomic.Value
 
+	// Td is used by package core to store the total difficulty
+	// of the chain up to and including the block.
 	td *big.Int
 
-	ReceivedAt   time.Time
-	ReceivedFrom interface{}
-	Signature    []byte `json:"signature"        gencodec:"required"`
+	// These fields are used by package aoa to track
+	// inter-peer block relay.
+	ReceivedAt     time.Time
+	ReceivedFrom   interface{}
+	Signature      []byte `json:"signature"        gencodec:"required"`
 	RlpEncodeSigns []byte
 }
 
+// DeprecatedTd is an old relic for extracting the TD of a block. It is in the
+// code solely to facilitate upgrading the database from the old format to the
+// new, after which it should be deleted. Do not use!
 func (b *Block) DeprecatedTd() *big.Int {
 	return b.td
 }
 
+// [deprecated by aoa/63]
+// StorageBlock defines the RLP encoding of a Block stored in the
+// state database. The StorageBlock encoding contains fields that
+// would otherwise need to be recomputed.
 type StorageBlock Block
 
+// "external" block encoding. used for aoa protocol, etc.
 type extblock struct {
-	Header         *Header
-	Txs            []*Transaction
-	Signature      []byte
+	Header    *Header
+	Txs       []*Transaction
+	Signature []byte
 }
 
+// [deprecated by aoa/63]
+// "storage" block encoding. used for database.
 type storageblock struct {
-	Header         *Header
-	Txs            []*Transaction
-	TD             *big.Int
-	Signature      []byte
+	Header    *Header
+	Txs       []*Transaction
+	TD        *big.Int
+	Signature []byte
 }
 
+// NewBlock creates a new block. The input data is copied,
+// changes to header and to the field values will not affect the
+// block.
+//
+// The values of TxHash, UncleHash, ReceiptHash and Bloom in header
+// are ignored and set to values derived from the given txs, uncles
+// and receipts.
 func NewBlock(header *Header, txs []*Transaction, receipts []*Receipt) *Block {
 	b := &Block{header: CopyHeader(header), td: new(big.Int)}
 
+	// TODO: panic if len(txs) != len(receipts)
 	if len(txs) == 0 {
 		b.header.TxHash = EmptyRootHash
 	} else {
@@ -160,16 +218,23 @@ func NewBlock(header *Header, txs []*Transaction, receipts []*Receipt) *Block {
 	return b
 }
 
+// NewBlockWithHeader creates a block with the given header data. The
+// header data is copied, changes to header and to the field values
+// will not affect the block.
 func NewBlockWithHeader(header *Header) *Block {
 	return &Block{header: CopyHeader(header)}
 }
 
+// CopyHeader creates a deep copy of a block header to prevent side effects from
+// modifying a header variable.
 func CopyHeader(h *Header) *Header {
 	cpy := *h
 	if cpy.Time = new(big.Int); h.Time != nil {
 		cpy.Time.Set(h.Time)
 	}
-
+	//if cpy.Difficulty = new(big.Int); h.Difficulty != nil {
+	//	cpy.Difficulty.Set(h.Difficulty)
+	//}
 	if cpy.Number = new(big.Int); h.Number != nil {
 		cpy.Number.Set(h.Number)
 	}
@@ -180,6 +245,7 @@ func CopyHeader(h *Header) *Header {
 	return &cpy
 }
 
+// DecodeRLP decodes the Aurora
 func (b *Block) DecodeRLP(s *rlp.Stream) error {
 	var eb extblock
 	_, size, _ := s.Kind()
@@ -191,6 +257,7 @@ func (b *Block) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
+// EncodeRLP serializes b into the Aurora RLP block format.
 func (b *Block) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, extblock{
 		Header:    b.header,
@@ -199,6 +266,7 @@ func (b *Block) EncodeRLP(w io.Writer) error {
 	})
 }
 
+// [deprecated by aoa/63]
 func (b *StorageBlock) DecodeRLP(s *rlp.Stream) error {
 	var sb storageblock
 	if err := s.Decode(&sb); err != nil {
@@ -207,6 +275,8 @@ func (b *StorageBlock) DecodeRLP(s *rlp.Stream) error {
 	b.header, b.transactions, b.td, b.Signature = sb.Header, sb.Txs, sb.TD, sb.Signature
 	return nil
 }
+
+// TODO: copies
 
 func (b *Block) Transactions() Transactions { return b.transactions }
 
@@ -241,6 +311,7 @@ func (b *Block) Extra() []byte            { return common.CopyBytes(b.header.Ext
 
 func (b *Block) Header() *Header { return CopyHeader(b.header) }
 
+// Body returns the non-header content of the block.
 func (b *Block) Body() *Body { return &Body{b.transactions} }
 
 func (b *Block) HashNoNonce() common.Hash {
@@ -264,6 +335,8 @@ func (c *writeCounter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
+// WithSeal returns a new block with the data from b but the header replaced with
+// the sealed one.
 func (b *Block) WithSeal(header *Header) *Block {
 	cpy := *header
 
@@ -273,6 +346,7 @@ func (b *Block) WithSeal(header *Header) *Block {
 	}
 }
 
+// WithBody returns a new block with the given transaction and uncle contents.
 func (b *Block) WithBody(transactions []*Transaction) *Block {
 	block := &Block{
 		header:       CopyHeader(b.header),
@@ -282,6 +356,8 @@ func (b *Block) WithBody(transactions []*Transaction) *Block {
 	return block
 }
 
+// Hash returns the keccak256 hash of b's header.
+// The hash is computed on the first call and cached thereafter.
 func (b *Block) Hash() common.Hash {
 	if hash := b.hash.Load(); hash != nil {
 		return hash.(common.Hash)
@@ -320,7 +396,7 @@ func (h *Header) String() string {
     DelegateRoot:   %x
     ShuffleHash:    %x
     ShuffleBlockNumber: %v
-]`, h.Hash(), h.ParentHash, h.Coinbase, h.Root, h.TxHash, h.ReceiptHash, h.Bloom, h.Number, h.GasLimit, h.GasUsed, h.Time, h.Extra,h.AgentName, h.DelegateRoot, h.ShuffleHash, h.ShuffleBlockNumber)
+]`, h.Hash(), h.ParentHash, h.Coinbase, h.Root, h.TxHash, h.ReceiptHash, h.Bloom, h.Number, h.GasLimit, h.GasUsed, h.Time, h.Extra, h.AgentName, h.DelegateRoot, h.ShuffleHash, h.ShuffleBlockNumber)
 }
 
 type Blocks []*Block

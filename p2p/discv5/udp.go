@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package discv5
 
 import (
@@ -8,16 +24,17 @@ import (
 	"net"
 	"time"
 
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/crypto"
-	"github.com/Aurorachain/go-Aurora/log"
-	"github.com/Aurorachain/go-Aurora/p2p/nat"
-	"github.com/Aurorachain/go-Aurora/p2p/netutil"
-	"github.com/Aurorachain/go-Aurora/rlp"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/crypto"
+	"github.com/Aurorachain/go-aoa/log"
+	"github.com/Aurorachain/go-aoa/p2p/nat"
+	"github.com/Aurorachain/go-aoa/p2p/netutil"
+	"github.com/Aurorachain/go-aoa/rlp"
 )
 
 const Version = 4
 
+// Errors
 var (
 	errPacketTooSmall   = errors.New("too small")
 	errBadPrefix        = errors.New("bad prefix")
@@ -29,59 +46,71 @@ var (
 	errClosed           = errors.New("socket closed")
 )
 
+// Timeouts
 const (
 	respTimeout = 500 * time.Millisecond
 	sendTimeout = 500 * time.Millisecond
 	expiration  = 20 * time.Second
 
-	ntpFailureThreshold = 32
-	ntpWarningCooldown  = 10 * time.Minute
-	driftThreshold      = 10 * time.Second
+	ntpFailureThreshold = 32               // Continuous timeouts after which to check NTP
+	ntpWarningCooldown  = 10 * time.Minute // Minimum amount of time to pass before repeating NTP warning
+	driftThreshold      = 10 * time.Second // Allowed clock drift before warning user
 )
 
+// RPC request structures
 type (
 	ping struct {
 		Version    uint
 		From, To   rpcEndpoint
 		Expiration uint64
 
+		// v5
 		Topics []Topic
 
+		// Ignore additional fields (for forward compatibility).
 		Rest []rlp.RawValue `rlp:"tail"`
 	}
 
+	// pong is the reply to ping.
 	pong struct {
-
+		// This field should mirror the UDP envelope address
+		// of the ping packet, which provides a way to discover the
+		// the external address (after NAT).
 		To rpcEndpoint
 
-		ReplyTok   []byte
-		Expiration uint64
+		ReplyTok   []byte // This contains the hash of the ping packet.
+		Expiration uint64 // Absolute timestamp at which the packet becomes invalid.
 
+		// v5
 		TopicHash    common.Hash
 		TicketSerial uint32
 		WaitPeriods  []uint32
 
+		// Ignore additional fields (for forward compatibility).
 		Rest []rlp.RawValue `rlp:"tail"`
 	}
 
+	// findnode is a query for nodes close to the given target.
 	findnode struct {
-		Target     NodeID
+		Target     NodeID // doesn't need to be an actual public key
 		Expiration uint64
-
+		// Ignore additional fields (for forward compatibility).
 		Rest []rlp.RawValue `rlp:"tail"`
 	}
 
+	// findnode is a query for nodes close to the given target.
 	findnodeHash struct {
 		Target     common.Hash
 		Expiration uint64
-
+		// Ignore additional fields (for forward compatibility).
 		Rest []rlp.RawValue `rlp:"tail"`
 	}
 
+	// reply to findnode
 	neighbors struct {
 		Nodes      []rpcNode
 		Expiration uint64
-
+		// Ignore additional fields (for forward compatibility).
 		Rest []rlp.RawValue `rlp:"tail"`
 	}
 
@@ -96,22 +125,23 @@ type (
 		Expiration uint64
 	}
 
+	// reply to topicQuery
 	topicNodes struct {
 		Echo  common.Hash
 		Nodes []rpcNode
 	}
 
 	rpcNode struct {
-		IP  net.IP
-		UDP uint16
-		TCP uint16
+		IP  net.IP // len 4 for IPv4 or 16 for IPv6
+		UDP uint16 // for discovery protocol
+		TCP uint16 // for RLPx protocol
 		ID  NodeID
 	}
 
 	rpcEndpoint struct {
-		IP  net.IP
-		UDP uint16
-		TCP uint16
+		IP  net.IP // len 4 for IPv4 or 16 for IPv6
+		UDP uint16 // for discovery protocol
+		TCP uint16 // for RLPx protocol
 	}
 )
 
@@ -119,9 +149,12 @@ var (
 	versionPrefix     = []byte("temporary discovery v5")
 	versionPrefixSize = len(versionPrefix)
 	sigSize           = 520 / 8
-	headSize          = versionPrefixSize + sigSize
+	headSize          = versionPrefixSize + sigSize // space of packet frame data
 )
 
+// Neighbors replies are sent across multiple packets to
+// stay below the 1280 byte limit. We compute the maximum number
+// of entries by stuffing a packet until it grows too large.
 var maxNeighbors = func() int {
 	p := neighbors{Expiration: ^uint64(0)}
 	maxSizeNode := rpcNode{IP: make(net.IP, 16), UDP: ^uint16(0), TCP: ^uint16(0)}
@@ -129,7 +162,7 @@ var maxNeighbors = func() int {
 		p.Nodes = append(p.Nodes, maxSizeNode)
 		size, _, err := rlp.EncodeToReader(p)
 		if err != nil {
-
+			// If this ever happens, it will be caught by the unit tests.
 			panic("cannot encode: " + err.Error())
 		}
 		if headSize+size+1 >= 1280 {
@@ -145,7 +178,7 @@ var maxTopicNodes = func() int {
 		p.Nodes = append(p.Nodes, maxSizeNode)
 		size, _, err := rlp.EncodeToReader(p)
 		if err != nil {
-
+			// If this ever happens, it will be caught by the unit tests.
 			panic("cannot encode: " + err.Error())
 		}
 		if headSize+size+1 >= 1280 {
@@ -184,7 +217,7 @@ type ingressPacket struct {
 	remoteAddr *net.UDPAddr
 	ev         nodeEvent
 	hash       []byte
-	data       interface{}
+	data       interface{} // one of the RPC structs
 	rawData    []byte
 }
 
@@ -195,6 +228,7 @@ type conn interface {
 	LocalAddr() net.Addr
 }
 
+// udp implements the RPC protocol.
 type udp struct {
 	conn        conn
 	priv        *ecdsa.PrivateKey
@@ -203,6 +237,7 @@ type udp struct {
 	net         *Network
 }
 
+// ListenUDP returns a new table that listens for UDP packets on laddr.
 func ListenUDP(priv *ecdsa.PrivateKey, conn conn, realaddr *net.UDPAddr, nodeDBPath string, netrestrict *netutil.Netlist) (*Network, error) {
 	transport, err := listenUDP(priv, conn, realaddr)
 	if err != nil {
@@ -212,7 +247,7 @@ func ListenUDP(priv *ecdsa.PrivateKey, conn conn, realaddr *net.UDPAddr, nodeDBP
 	if err != nil {
 		return nil, err
 	}
-	log.Info("UDP listener up", "net", net.tab.self)
+	log.Infof("UDP listener up, net=%v", net.tab.self)
 	transport.net = net
 	go transport.readLoop()
 	return net, nil
@@ -239,7 +274,7 @@ func (t *udp) sendPing(remote *Node, toaddr *net.UDPAddr, topics []Topic) (hash 
 	hash, _ = t.sendPacket(remote.ID, toaddr, byte(pingPacket), ping{
 		Version:    Version,
 		From:       t.ourEndpoint,
-		To:         makeEndpoint(toaddr, uint16(toaddr.Port)),
+		To:         makeEndpoint(toaddr, uint16(toaddr.Port)), // TODO: maybe use known TCP port from DB
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
 		Topics:     topics,
 	})
@@ -254,7 +289,8 @@ func (t *udp) sendFindnode(remote *Node, target NodeID) {
 }
 
 func (t *udp) sendNeighbours(remote *Node, results []*Node) {
-
+	// Send neighbors in chunks with at most maxNeighbors per packet
+	// to stay below the 1280 byte limit.
 	p := neighbors{Expiration: uint64(time.Now().Add(expiration).Unix())}
 	for i, result := range results {
 		p.Nodes = append(p.Nodes, nodeToRPC(result))
@@ -299,20 +335,21 @@ func (t *udp) sendTopicNodes(remote *Node, queryHash common.Hash, nodes []*Node)
 }
 
 func (t *udp) sendPacket(toid NodeID, toaddr *net.UDPAddr, ptype byte, req interface{}) (hash []byte, err error) {
-
+	//fmt.Println("sendPacket", nodeEvent(ptype), toaddr.String(), toid.String())
 	packet, hash, err := encodePacket(t.priv, ptype, req)
 	if err != nil {
-
+		//fmt.Println(err)
 		return hash, err
 	}
-	log.Trace(fmt.Sprintf(">>> %v to %x@%v", nodeEvent(ptype), toid[:8], toaddr))
+	log.Debug(fmt.Sprintf(">>> %v to %x@%v", nodeEvent(ptype), toid[:8], toaddr))
 	if _, err = t.conn.WriteToUDP(packet, toaddr); err != nil {
-		log.Trace(fmt.Sprint("UDP send failed:", err))
+		log.Debug(fmt.Sprint("UDP send failed:", err))
 	}
-
+	//fmt.Println(err)
 	return hash, err
 }
 
+// zeroed padding space for encodePacket.
 var headSpace = make([]byte, headSize)
 
 func encodePacket(priv *ecdsa.PrivateKey, ptype byte, req interface{}) (p, hash []byte, err error) {
@@ -335,19 +372,23 @@ func encodePacket(priv *ecdsa.PrivateKey, ptype byte, req interface{}) (p, hash 
 	return packet, hash, nil
 }
 
+// readLoop runs in its own goroutine. it injects ingress UDP packets
+// into the network loop.
 func (t *udp) readLoop() {
 	defer t.conn.Close()
-
+	// Discovery packets are defined to be no larger than 1280 bytes.
+	// Packets larger than this size will be cut at the end and treated
+	// as invalid because their hash won't match.
 	buf := make([]byte, 1280)
 	for {
 		nbytes, from, err := t.conn.ReadFromUDP(buf)
 		if netutil.IsTemporaryError(err) {
-
-			log.Debug(fmt.Sprintf("Temporary read error: %v", err))
+			// Ignore temporary read errors.
+			log.Info(fmt.Sprintf("Temporary read error: %v", err))
 			continue
 		} else if err != nil {
-
-			log.Debug(fmt.Sprintf("Read error: %v", err))
+			// Shut down the loop for permament errors.
+			log.Info(fmt.Sprintf("Read error: %v", err))
 			return
 		}
 		t.handlePacket(from, buf[:nbytes])
@@ -357,8 +398,8 @@ func (t *udp) readLoop() {
 func (t *udp) handlePacket(from *net.UDPAddr, buf []byte) error {
 	pkt := ingressPacket{remoteAddr: from}
 	if err := decodePacket(buf, &pkt); err != nil {
-		log.Debug(fmt.Sprintf("Bad packet from %v: %v", from, err))
-
+		log.Info(fmt.Sprintf("Bad packet from %v: %v", from, err))
+		//fmt.Println("bad packet", err)
 		return err
 	}
 	t.net.reqReadPacket(pkt)

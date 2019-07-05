@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package main
 
 import (
@@ -9,22 +25,23 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Aurorachain/go-Aurora/log"
-	"github.com/Aurorachain/go-Aurora/node"
-	"github.com/Aurorachain/go-Aurora/p2p"
-	"github.com/Aurorachain/go-Aurora/p2p/discover"
-	"github.com/Aurorachain/go-Aurora/p2p/simulations"
-	"github.com/Aurorachain/go-Aurora/p2p/simulations/adapters"
-	"github.com/Aurorachain/go-Aurora/rpc"
+	"github.com/Aurorachain/go-aoa/log"
+	"github.com/Aurorachain/go-aoa/node"
+	"github.com/Aurorachain/go-aoa/p2p"
+	"github.com/Aurorachain/go-aoa/p2p/discover"
+	"github.com/Aurorachain/go-aoa/p2p/simulations"
+	"github.com/Aurorachain/go-aoa/p2p/simulations/adapters"
+	"github.com/Aurorachain/go-aoa/rpc"
 )
 
 var adapterType = flag.String("adapter", "sim", `node adapter to use (one of "sim", "exec" or "docker")`)
 
+// main() starts a simulation network which contains nodes running a simple
+// ping-pong protocol
 func main() {
 	flag.Parse()
 
-	log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
-
+	// register a single ping-pong service
 	services := map[string]adapters.ServiceFunc{
 		"ping-pong": func(ctx *adapters.ServiceContext) (node.Service, error) {
 			return newPingPongService(ctx.Config.ID), nil
@@ -32,6 +49,7 @@ func main() {
 	}
 	adapters.RegisterServices(services)
 
+	// create the NodeAdapter
 	var adapter adapters.NodeAdapter
 
 	switch *adapterType {
@@ -43,10 +61,10 @@ func main() {
 	case "exec":
 		tmpdir, err := ioutil.TempDir("", "p2p-example")
 		if err != nil {
-			log.Crit("error creating temp dir", "err", err)
+			log.Error("error creating temp dir", "err", err)
 		}
 		defer os.RemoveAll(tmpdir)
-		log.Info("using exec adapter", "tmpdir", tmpdir)
+		log.Infof("using exec adapter, tmpdir=%v", tmpdir)
 		adapter = adapters.NewExecAdapter(tmpdir)
 
 	case "docker":
@@ -54,32 +72,34 @@ func main() {
 		var err error
 		adapter, err = adapters.NewDockerAdapter()
 		if err != nil {
-			log.Crit("error creating docker adapter", "err", err)
+			log.Error("error creating docker adapter", "err", err)
 		}
 
 	default:
-		log.Crit(fmt.Sprintf("unknown node adapter %q", *adapterType))
+		log.Error(fmt.Sprintf("unknown node adapter %q", *adapterType))
 	}
 
+	// start the HTTP API
 	log.Info("starting simulation server on 0.0.0.0:8888...")
 	network := simulations.NewNetwork(adapter, &simulations.NetworkConfig{
 		DefaultService: "ping-pong",
 	})
 	if err := http.ListenAndServe(":8888", simulations.NewServer(network)); err != nil {
-		log.Crit("error starting simulation server", "err", err)
+		log.Error("error starting simulation server", "err", err)
 	}
 }
 
+// pingPongService runs a ping-pong protocol between nodes where each node
+// sends a ping to all its connected peers every 10s and receives a pong in
+// return
 type pingPongService struct {
 	id       discover.NodeID
-	log      log.Logger
 	received int64
 }
 
 func newPingPongService(id discover.NodeID) *pingPongService {
 	return &pingPongService{
 		id:  id,
-		log: log.New("node.id", id),
 	}
 }
 
@@ -98,12 +118,12 @@ func (p *pingPongService) APIs() []rpc.API {
 }
 
 func (p *pingPongService) Start(server *p2p.Server) error {
-	p.log.Info("ping-pong service starting")
+	log.Info("ping-pong service starting")
 	return nil
 }
 
 func (p *pingPongService) Stop() error {
-	p.log.Info("ping-pong service stopping")
+	log.Info("ping-pong service stopping")
 	return nil
 }
 
@@ -120,8 +140,9 @@ const (
 	pongMsgCode
 )
 
-func (p *pingPongService) Run(peer *p2p.Peer, rw p2p.MsgReadWriter,netType byte) error {
-	log := p.log.New("peer.id", peer.ID())
+// Run implements the ping-pong protocol which sends ping messages to the peer
+// at 10s intervals, and responds to pings with pong messages.
+func (p *pingPongService) Run(peer *p2p.Peer, rw p2p.MsgReadWriter, netType byte) error {
 
 	errC := make(chan error)
 	go func() {
@@ -145,7 +166,7 @@ func (p *pingPongService) Run(peer *p2p.Peer, rw p2p.MsgReadWriter,netType byte)
 				errC <- err
 				return
 			}
-			log.Info("received message", "msg.code", msg.Code, "msg.payload", string(payload))
+			log.Infof("received message, msg.code=%v, msg.payload=%v", msg.Code, string(payload))
 			atomic.AddInt64(&p.received, 1)
 			if msg.Code == pingMsgCode {
 				log.Info("sending pong")

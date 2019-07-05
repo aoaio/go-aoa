@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package math
 
 import (
@@ -6,7 +22,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/Aurorachain/go-Aurora/common"
+	"github.com/Aurorachain/go-aoa/common"
 )
 
 func TestHexOrDecimal256(t *testing.T) {
@@ -21,15 +37,15 @@ func TestHexOrDecimal256(t *testing.T) {
 		{"12345678", big.NewInt(12345678), true},
 		{"0x12345678", big.NewInt(0x12345678), true},
 		{"0X12345678", big.NewInt(0x12345678), true},
-
-		{"0123456789", big.NewInt(123456789), true},
+		// Tests for leading zero behaviour:
+		{"0123456789", big.NewInt(123456789), true}, // note: not octal
 		{"00", big.NewInt(0), true},
 		{"0x00", big.NewInt(0), true},
 		{"0x012345678abc", big.NewInt(0x12345678abc), true},
-
+		// Invalid syntax:
 		{"abcdef", nil, false},
 		{"0xgg", nil, false},
-
+		// Larger than 256 bits:
 		{"115792089237316195423570985008687907853269984665640564039457584007913129639936", nil, false},
 	}
 	for _, test := range tests {
@@ -184,7 +200,7 @@ func TestU256(t *testing.T) {
 		{x: BigPow(2, 255), y: BigPow(2, 255)},
 		{x: BigPow(2, 256), y: big.NewInt(0)},
 		{x: new(big.Int).Add(BigPow(2, 256), big.NewInt(1)), y: big.NewInt(1)},
-
+		// negative values
 		{x: big.NewInt(-1), y: new(big.Int).Sub(BigPow(2, 256), big.NewInt(1))},
 		{x: big.NewInt(-2), y: new(big.Int).Sub(BigPow(2, 256), big.NewInt(2))},
 		{x: BigPow(2, -255), y: big.NewInt(1)},

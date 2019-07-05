@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package rlp
 
 import (
@@ -9,10 +25,11 @@ import (
 
 func TestCountValues(t *testing.T) {
 	tests := []struct {
-		input string
+		input string // note: spaces in input are stripped by unhex
 		count int
 		err   error
 	}{
+		// simple cases
 		{"", 0, nil},
 		{"00", 1, nil},
 		{"80", 1, nil},
@@ -83,6 +100,7 @@ func TestSplit(t *testing.T) {
 		{input: "8501010101", err: ErrValueTooLarge, rest: "8501010101"},
 		{input: "C60607080902", err: ErrValueTooLarge, rest: "C60607080902"},
 
+		// size check overflow
 		{input: "BFFFFFFFFFFFFFFFFF", err: ErrValueTooLarge, rest: "BFFFFFFFFFFFFFFFFF"},
 		{input: "FFFFFFFFFFFFFFFFFF", err: ErrValueTooLarge, rest: "FFFFFFFFFFFFFFFFFF"},
 
@@ -97,6 +115,7 @@ func TestSplit(t *testing.T) {
 			rest:  "F838FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
 		},
 
+		// a few bigger values, just for kicks
 		{
 			input: "F839FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
 			kind:  List,

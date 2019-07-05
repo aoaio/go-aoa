@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package core
 
 import (
@@ -6,11 +22,11 @@ import (
 	"math/big"
 
 	"fmt"
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/core/types"
-	"github.com/Aurorachain/go-Aurora/core/vm"
-	"github.com/Aurorachain/go-Aurora/log"
-	"github.com/Aurorachain/go-Aurora/params"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/core/types"
+	"github.com/Aurorachain/go-aoa/core/vm"
+	"github.com/Aurorachain/go-aoa/log"
+	"github.com/Aurorachain/go-aoa/params"
 )
 
 var (
@@ -35,20 +51,21 @@ The state transitioning model does all all the necessary work to work out a vali
 6) Derive new state root
 */
 type StateTransition struct {
-	gp         *GasPool 
+	gp         *GasPool //区块的gas池，代表剩余可继续包含交易的gas数。
 	msg        Message
-	gas        uint64 
+	gas        uint64 //剩余可用gas，初始化时等于用户的gasLimit
 	gasPrice   *big.Int
-	initialGas uint64 
+	initialGas uint64 //用户提供的总gas，等于用户的gasLimit
 	value      *big.Int
 	data       []byte
 	state      vm.StateDB
 	evm        *vm.EVM
 }
 
+// Message represents a message sent to a contract.
 type Message interface {
 	From() common.Address
-
+	//FromFrontier() (common.Address, error)
 	To() *common.Address
 
 	GasPrice() *big.Int
@@ -66,14 +83,15 @@ type Message interface {
 	Abi() string
 }
 
+// IntrinsicGas computes the 'intrinsic gas' for a message with the given data.
 func IntrinsicGas(data []byte, action uint64) (uint64, error) {
-
+	// Set the starting gas for the raw transaction
 	var gas uint64
 	switch action {
 	case types.ActionTrans:
 		gas = params.TxGas
 	case types.ActionRegister:
-
+		//当前注册扣费逻辑在别处，可能需考虑优化。
 		gas = params.TxGas
 	case types.ActionAddVote, types.ActionSubVote:
 		gas = params.TxGas
@@ -85,15 +103,16 @@ func IntrinsicGas(data []byte, action uint64) (uint64, error) {
 		gas = params.TxGas
 	}
 
+	// Bump the required gas by the amount of transactional data
 	if len(data) > 0 {
-
+		// Zero and non-zero bytes are priced differently
 		var nz uint64
 		for _, byt := range data {
 			if byt != 0 {
 				nz++
 			}
 		}
-
+		// Make sure we don't exceed uint64 for all data combinations
 		if (math.MaxUint64-gas)/params.TxDataNonZeroGas < nz {
 			return 0, vm.ErrOutOfGas
 		}
@@ -108,6 +127,7 @@ func IntrinsicGas(data []byte, action uint64) (uint64, error) {
 	return gas, nil
 }
 
+// NewStateTransition initialises and returns a new state transition object.
 func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition {
 	return &StateTransition{
 		gp:       gp,
@@ -120,6 +140,13 @@ func NewStateTransition(evm *vm.EVM, msg Message, gp *GasPool) *StateTransition 
 	}
 }
 
+// ApplyMessage computes the new state by applying the given message
+// against the old state within the environment.
+//
+// ApplyMessage returns the bytes returned by any EVM execution (if it took place),
+// the gas used (which includes gas refunds) and an error if it failed. An error always
+// indicates a core error meaning that the message would always fail for that particular
+// state and would never be accepted within a block.
 func ApplyMessage(evm *vm.EVM, msg Message, gp *GasPool) ([]byte, uint64, bool, error) {
 	return NewStateTransition(evm, msg, gp).TransitionDb()
 }
@@ -138,7 +165,7 @@ func (st *StateTransition) to() vm.AccountRef {
 	}
 	to := st.msg.To()
 	if to == nil {
-		return vm.AccountRef{} 
+		return vm.AccountRef{} // contract creation
 	}
 
 	reference := vm.AccountRef(*to)
@@ -177,7 +204,7 @@ func (st *StateTransition) buyGas() error {
 }
 
 func (st *StateTransition) preCheck() error {
-
+	// ActionCallContract is the largest action number
 	if st.msg.Action() > types.ActionCallContract {
 		return fmt.Errorf("Illegal action: %d", st.msg.Action())
 	}
@@ -185,6 +212,7 @@ func (st *StateTransition) preCheck() error {
 	msg := st.msg
 	sender := st.from()
 
+	// Make sure this transaction's nonce is correct
 	if msg.CheckNonce() {
 		nonce := st.state.GetNonce(sender.Address())
 		if nonce < msg.Nonce() {
@@ -196,14 +224,19 @@ func (st *StateTransition) preCheck() error {
 	return st.buyGas()
 }
 
+// TransitionDb will transition the state by applying the current message and
+// returning the result including the the used gas. It returns an error if it
+// failed. An error indicates a consensus issue.
 func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bool, err error) {
-
+	//defer func() {log.Info("End of transitiondb","err",err)}()
 	if err = st.preCheck(); err != nil {
 		return
 	}
 	msg := st.msg
-	sender := st.from() 
+	sender := st.from() // err checked in preCheck
 
+	// Pay intrinsic gas
+	// cal gas used
 	gas, err := IntrinsicGas(st.data, msg.Action())
 	if err = st.useGas(gas); err != nil {
 		return nil, 0, false, err
@@ -211,7 +244,9 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 
 	var (
 		evm = st.evm
-
+		// vm errors do not effect consensus and are therefor
+		// not assigned to err, except for insufficient balance
+		// error.
 		vmerr error
 	)
 	switch msg.Action() {
@@ -232,13 +267,15 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 			return nil, 0, true, err
 		}
 	default:
-
+		// Increment the nonce for the next transaction
 		st.state.SetNonce(sender.Address(), st.state.GetNonce(sender.Address())+1)
 		ret, st.gas, vmerr = evm.Call(sender, st.to().Address(), st.data, st.gas, msg.Action(), st.value, msg.Vote(), msg.Asset())
 	}
 	if vmerr != nil {
 		log.Info("VM returned with error", "err", vmerr)
-
+		// The only possible consensus-error would be if there wasn't
+		// sufficient balance to make the transfer happen. The first
+		// balance transfer may never fail.
 		if vmerr == vm.ErrInsufficientBalance {
 			return nil, 0, false, vmerr
 		}
@@ -254,21 +291,25 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 }
 
 func (st *StateTransition) refundGas() {
-
+	// Apply refund counter, capped to half of the used gas.
 	refund := st.gasUsed() / 2
 	if refund > st.state.GetRefund() {
 		refund = st.state.GetRefund()
 	}
 	st.gas += refund
 
+	// Return AOA for remaining gas, exchanged at the original rate.
 	sender := st.from()
 
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
 	st.state.AddBalance(sender.Address(), remaining)
 
+	// Also return remaining gas to the block gas counter so it is
+	// available for the next transaction.
 	st.gp.AddGas(st.gas)
 }
 
+// gasUsed returns the amount of gas used up by the state transition.
 func (st *StateTransition) gasUsed() uint64 {
 	return st.initialGas - st.gas
 }

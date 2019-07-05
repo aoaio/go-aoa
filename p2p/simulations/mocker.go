@@ -1,3 +1,21 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
+// Package simulations simulates p2p networks.
+// A mocker simulates starting and stopping real nodes in a network.
 package simulations
 
 import (
@@ -6,20 +24,24 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Aurorachain/go-Aurora/log"
-	"github.com/Aurorachain/go-Aurora/p2p/discover"
+	"github.com/Aurorachain/go-aoa/log"
+	"github.com/Aurorachain/go-aoa/p2p/discover"
 )
 
+//a map of mocker names to its function
 var mockerList = map[string]func(net *Network, quit chan struct{}, nodeCount int){
 	"startStop":     startStop,
 	"probabilistic": probabilistic,
 	"boot":          boot,
 }
 
+//Lookup a mocker by its name, returns the mockerFn
 func LookupMocker(mockerType string) func(net *Network, quit chan struct{}, nodeCount int) {
 	return mockerList[mockerType]
 }
 
+//Get a list of mockers (keys of the map)
+//Useful for frontend to build available mocker selection
 func GetMockerList() []string {
 	list := make([]string, 0, len(mockerList))
 	for k := range mockerList {
@@ -28,6 +50,7 @@ func GetMockerList() []string {
 	return list
 }
 
+//The boot mockerFn only connects the node in a ring and doesn't do anything else
 func boot(net *Network, quit chan struct{}, nodeCount int) {
 	_, err := connectNodesInRing(net, nodeCount)
 	if err != nil {
@@ -35,6 +58,7 @@ func boot(net *Network, quit chan struct{}, nodeCount int) {
 	}
 }
 
+//The startStop mockerFn stops and starts nodes in a defined period (ticker)
 func startStop(net *Network, quit chan struct{}, nodeCount int) {
 	nodes, err := connectNodesInRing(net, nodeCount)
 	if err != nil {
@@ -49,9 +73,9 @@ func startStop(net *Network, quit chan struct{}, nodeCount int) {
 			return
 		case <-tick.C:
 			id := nodes[rand.Intn(len(nodes))]
-			log.Info("stopping node", "id", id)
+			log.Infof("stopping node %v",  id)
 			if err := net.Stop(id); err != nil {
-				log.Error("error stopping node", "id", id, "err", err)
+				log.Errorf("error stopping node %v, err=%v", id, err)
 				return
 			}
 
@@ -62,15 +86,19 @@ func startStop(net *Network, quit chan struct{}, nodeCount int) {
 			case <-time.After(3 * time.Second):
 			}
 
-			log.Debug("starting node", "id", id)
+			log.Infof("starting node %v", id)
 			if err := net.Start(id); err != nil {
-				log.Error("error starting node", "id", id, "err", err)
+				log.Errorf("error starting node %v, err=%v", id, err)
 				return
 			}
 		}
 	}
 }
 
+//The probabilistic mocker func has a more probabilistic pattern
+//(the implementation could probably be improved):
+//nodes are connected in a ring, then a varying number of random nodes is selected,
+//mocker then stops and starts them in random intervals, and continues the loop
 func probabilistic(net *Network, quit chan struct{}, nodeCount int) {
 	nodes, err := connectNodesInRing(net, nodeCount)
 	if err != nil {
@@ -112,7 +140,7 @@ func probabilistic(net *Network, quit chan struct{}, nodeCount int) {
 				return
 			case <-time.After(randWait):
 			}
-			log.Debug(fmt.Sprintf("node %v shutting down", nodes[i]))
+			log.Info(fmt.Sprintf("node %v shutting down", nodes[i]))
 			err := net.Stop(nodes[i])
 			if err != nil {
 				log.Error(fmt.Sprintf("Error stopping node %s", nodes[i]))
@@ -133,6 +161,7 @@ func probabilistic(net *Network, quit chan struct{}, nodeCount int) {
 
 }
 
+//connect nodeCount number of nodes in a ring
 func connectNodesInRing(net *Network, nodeCount int) ([]discover.NodeID, error) {
 	ids := make([]discover.NodeID, nodeCount)
 	for i := 0; i < nodeCount; i++ {
@@ -149,7 +178,7 @@ func connectNodesInRing(net *Network, nodeCount int) ([]discover.NodeID, error) 
 			log.Error("Error starting a node! %s", err)
 			return nil, err
 		}
-		log.Debug(fmt.Sprintf("node %v starting up", id))
+		log.Info(fmt.Sprintf("node %v starting up", id))
 	}
 	for i, id := range ids {
 		peerID := ids[(i+1)%len(ids)]

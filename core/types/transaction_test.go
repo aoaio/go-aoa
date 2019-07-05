@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package types
 
 import (
@@ -9,15 +25,16 @@ import (
 
 	"encoding/binary"
 	"fmt"
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/common/hexutil"
-	"github.com/Aurorachain/go-Aurora/crypto"
-	"github.com/Aurorachain/go-Aurora/rlp"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/common/hexutil"
+	"github.com/Aurorachain/go-aoa/crypto"
+	"github.com/Aurorachain/go-aoa/rlp"
 	"io"
-	"sync/atomic"
 	"regexp"
+	"sync/atomic"
 )
 
+// The values in those tests are from the Transaction Tests
 var (
 	emptyTx = NewTransaction(
 		0,
@@ -25,14 +42,38 @@ var (
 		big.NewInt(0), 0, big.NewInt(0),
 		nil, 0, nil, nil, nil, nil, "")
 
+	//rightvrsTx, _ = NewTransaction(
+	//	3,
+	//	common.HexToAddress("b94f5374fce5edbc8e2a8697c15331677e6ebf0b"),
+	//	big.NewInt(10),
+	//	2000,
+	//	big.NewInt(1),
+	//	common.FromHex("5544"), 0, nil, nil,nil,nil,make([]byte,0),
+	//).WithSignature(
+	//	HomesteadSigner{},
+	//	common.Hex2Bytes("98ff921201554726367d2be8c804a7ff89ccf285ebc57dff8ae4c44b9c19ac4a8887321be575c8095f789dd4c743dfe42c1820f9231f98a962b210e3ac2452a301"),
+	//)
 )
 
 func TestTransactionSigHash(t *testing.T) {
-
+	//var homestead HomesteadSigner
+	//if homestead.Hash(emptyTx) != common.HexToHash("c775b99e7ad12f50d819fcd602390467e28141316969f4b57f0626f74fe3b386") {
+	//	t.Errorf("empty transaction hash mismatch, got %x", emptyTx.Hash())
+	//}
+	//if homestead.Hash(rightvrsTx) != common.HexToHash("fe7a79529ed5f7c3375d06b26b186a8644e0e16c373d7a12be41c62d6042b77a") {
+	//	t.Errorf("RightVRS transaction hash mismatch, got %x", rightvrsTx.Hash())
+	//}
 }
 
 func TestTransactionEncode(t *testing.T) {
-
+	//txb, err := rlp.EncodeToBytes(rightvrsTx)
+	//if err != nil {
+	//	t.Fatalf("encode error: %v", err)
+	//}
+	//should := common.FromHex("f86603018207d094b94f5374fce5edbc8e2a8697c15331677e6ebf0b0a8255441ca098ff921201554726367d2be8c804a7ff89ccf285ebc57dff8ae4c44b9c19ac4aa08887321be575c8095f789dd4c743dfe42c1820f9231f98a962b210e3ac2452a380808080c0")
+	//if !bytes.Equal(txb, should) {
+	//	t.Errorf("encoded RLP mismatch, got %x", txb)
+	//}
 }
 
 func decodeTx(data []byte) (*Transaction, error) {
@@ -86,15 +127,18 @@ func TestRecipientNormal(t *testing.T) {
 	}
 }
 
+// Tests that transactions can be correctly sorted according to their price in
+// decreasing order, but at the same time with increasing nonces when issued by
+// the same account.
 func TestTransactionPriceNonceSort(t *testing.T) {
-
+	// Generate a batch of accounts to start with
 	keys := make([]*ecdsa.PrivateKey, 25)
 	for i := 0; i < len(keys); i++ {
 		keys[i], _ = crypto.GenerateKey()
 	}
 
 	signer := AuroraSigner{}
-
+	// Generate a batch of transactions with overlapping values, but shifted nonces
 	groups := map[common.Address]Transactions{}
 	for start, key := range keys {
 		addr := crypto.PubkeyToAddress(key.PublicKey)
@@ -103,7 +147,7 @@ func TestTransactionPriceNonceSort(t *testing.T) {
 			groups[addr] = append(groups[addr], tx)
 		}
 	}
-
+	// Sort the transactions and cross check the nonce ordering
 	txset := NewTransactionsByPriceAndNonce(signer, groups)
 
 	txs := Transactions{}
@@ -117,6 +161,7 @@ func TestTransactionPriceNonceSort(t *testing.T) {
 	for i, txi := range txs {
 		fromi, _ := Sender(signer, txi)
 
+		// Make sure the nonce order is valid
 		for j, txj := range txs[i+1:] {
 			fromj, _ := Sender(signer, txj)
 
@@ -124,7 +169,7 @@ func TestTransactionPriceNonceSort(t *testing.T) {
 				t.Errorf("invalid nonce ordering: tx #%d (A=%x N=%v) < tx #%d (A=%x N=%v)", i, fromi[:4], txi.Nonce(), i+j, fromj[:4], txj.Nonce())
 			}
 		}
-
+		// Find the previous and next nonce of this account
 		prev, next := i-1, i+1
 		for j := i - 1; j >= 0; j-- {
 			if fromj, _ := Sender(signer, txs[j]); fromi == fromj {
@@ -138,7 +183,7 @@ func TestTransactionPriceNonceSort(t *testing.T) {
 				break
 			}
 		}
-
+		// Make sure that in between the neighbor nonces, the transaction is correctly positioned price wise
 		for j := prev + 1; j < next; j++ {
 			fromj, _ := Sender(signer, txs[j])
 			if j < i && txs[j].GasPrice().Cmp(txi.GasPrice()) < 0 {
@@ -151,6 +196,7 @@ func TestTransactionPriceNonceSort(t *testing.T) {
 	}
 }
 
+// TestTransactionJSON tests serializing/de-serializing to/from JSON.
 func TestTransactionJSON(t *testing.T) {
 	key, err := crypto.GenerateKey()
 	if err != nil {
@@ -166,7 +212,7 @@ func TestTransactionJSON(t *testing.T) {
 			tx = NewTransaction(i, common.Address{1}, common.Big0, 1, common.Big2, []byte("abcdef"), 0, nil, nil, nil, nil, "")
 		case 1:
 
-			tx = NewContractCreation(i, common.Big0, 1, common.Big2, []byte("abcdef"), `[{"constant":true,"inputs":[],"name":"mybalance","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"payable":true,"stateMutability":"payable","type":"fallback"}]`,nil)
+			tx = NewContractCreation(i, common.Big0, 1, common.Big2, []byte("abcdef"), `[{"constant":true,"inputs":[],"name":"mybalance","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"payable":true,"stateMutability":"payable","type":"fallback"}]`, nil)
 		}
 
 		tx, err := SignTx(tx, signer, key)
@@ -184,6 +230,7 @@ func TestTransactionJSON(t *testing.T) {
 			t.Errorf("json.Unmarshal failed: %v", err)
 		}
 
+		// compare nonce, price, gaslimit, recipient, amount, payload, V, R, S
 		if tx.Hash() != parsedTx.Hash() {
 			t.Errorf("parsed tx differs from original tx, want %v, got %v", tx, parsedTx)
 		}
@@ -196,7 +243,7 @@ func TestTransactionJSON(t *testing.T) {
 func TestTransaction_DecodeRLP(t *testing.T) {
 
 	errSign := "0xf872808502540be40083030d40943e106d2004a5bdc48be21c28e46c9e0c2d28d69f8ad3c21bcecceda1000000801ca0b2df725d4f5647ea4199d375e0fc1bb17363ee551a3f96842cb4817b5e35b57ca055c8ab5061c3865768838ac8f5734071327dce29042a595a4088df5379a973f2808080"
-
+	// rightSign := "0xf872098502540be40083030d40943e106d2004a5bdc48be21c28e46c9e0c2d28d69f8ad3c21bcecceda1000000801ca0828dafbff984029dea5c8fb69e0d82a54958d542680a322cc834425c71fadf59a00c0a5777be5acfeadc00e23d183b5d88262ebf4eaa19e5e74c2c3fe4a2df016b80c080"
 	encodedTx, _ := hexutil.Decode(errSign)
 	fmt.Println(encodedTx)
 	tx := new(transaction)
@@ -232,7 +279,7 @@ func TestTxDifference(t *testing.T) {
 
 type transaction struct {
 	data tdata
-
+	// caches
 	hash atomic.Value
 	size atomic.Value
 	from atomic.Value
@@ -242,29 +289,33 @@ type tdata struct {
 	AccountNonce uint64          `json:"nonce"    gencodec:"required"`
 	Price        *big.Int        `json:"gasPrice" gencodec:"required"`
 	GasLimit     uint64          `json:"gas"      gencodec:"required"`
-	Recipient    *common.Address `json:"to"       rlp:"nil"`
+	Recipient    *common.Address `json:"to"       rlp:"nil"` // nil means contract creation
 	Amount       *big.Int        `json:"value"    gencodec:"required"`
 	Payload      []byte          `json:"input"    gencodec:"required"`
 
+	// Signature values
 	V *big.Int `json:"v" gencodec:"required"`
 	R *big.Int `json:"r" gencodec:"required"`
 	S *big.Int `json:"s" gencodec:"required"`
 
-	Action   uint   `json:"action"  gencodec:"required"`
+	Action   uint   `json:"action"  gencodec:"required"` // 额外动作默认0, 1-代理注册, 2-投票操作。 投票传投票动作，即投xxx票
 	Vote     []byte `json:"vote" rlp:"nil"`
 	Nickname []byte `json:"nickname" rlp:"nil"`
 
+	// This is only used when marshaling to JSON.
 	Hash *common.Hash `json:"hash" rlp:"-"`
-
+	//资产符号，作为资产的唯一标识。当Action 为ActionTrans时有意义。
 	AssetSymbol string `json:"assetSymbol,omitempty" rlp:"nil"`
-
+	//资产信息，当Action 为 ActionPublishAsset 时有意义
 	AssetInfo *AssetInfo `json:"assetInfo,omitempty" rlp:"nil"`
 }
 
+// EncodeRLP implements rlp.Encoder
 func (tx *transaction) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, &tx.data)
 }
 
+// DecodeRLP implements rlp.Decoder
 func (tx *transaction) DecodeRLP(s *rlp.Stream) error {
 	_, size, _ := s.Kind()
 	err := s.Decode(&tx.data)
@@ -319,6 +370,14 @@ func TestRecoverFromAddress(t *testing.T) {
 		t.Fatal(err)
 	}
 	fmt.Println(tx)
+	//
+	//recoverPlain(s.Hash(tx), tx.data.R, tx.data.S, V, true)
+	//var f AuroraSigner
+	//addresses, err := f.Sender(tx)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	//fmt.Println(addresses.Hex())
 
 }
 
@@ -347,6 +406,9 @@ func TestAoaAddress(t *testing.T) {
 	to := "AOA60aac5adbb14ea09b3a01f04b56aa8b5db420f55"
 	match, err := regexp.MatchString("(?i:^AOA|0x)[0-9a-f]{40}[0-9A-Za-z]{0,32}$", to)
 
+	//"(?i:^AOA|0x)"
+	//match, err := regexp.MatchString("^AOA[0-9a-f]{40}[0-9A-Za-z]{0,32}$", to)
+	// match, err := regexp.MatchString("(^0-9A-Za-z)", to)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package simulations
 
 import (
@@ -6,12 +22,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Aurorachain/go-Aurora/p2p/discover"
-	"github.com/Aurorachain/go-Aurora/p2p/simulations/adapters"
+	"github.com/Aurorachain/go-aoa/p2p/discover"
+	"github.com/Aurorachain/go-aoa/p2p/simulations/adapters"
 )
 
+// TestNetworkSimulation creates a multi-node simulation network with each node
+// connected in a ring topology, checks that all nodes successfully handshake
+// with each other and that a snapshot fully represents the desired topology
 func TestNetworkSimulation(t *testing.T) {
-
+	// create simulation network with 20 testService nodes
 	adapter := adapters.NewSimAdapter(adapters.Services{
 		"test": newTestService,
 	})
@@ -32,6 +51,9 @@ func TestNetworkSimulation(t *testing.T) {
 		ids[i] = node.ID()
 	}
 
+	// perform a check which connects the nodes in a ring (so each node is
+	// connected to exactly two peers) and then checks that all nodes
+	// performed two handshakes by checking their peerCount
 	action := func(_ context.Context) error {
 		for i, id := range ids {
 			peerID := ids[(i+1)%len(ids)]
@@ -42,18 +64,20 @@ func TestNetworkSimulation(t *testing.T) {
 		return nil
 	}
 	check := func(ctx context.Context, id discover.NodeID) (bool, error) {
-
+		// check we haven't run out of time
 		select {
 		case <-ctx.Done():
 			return false, ctx.Err()
 		default:
 		}
 
+		// get the node
 		node := network.GetNode(id)
 		if node == nil {
 			return false, fmt.Errorf("unknown node: %s", id)
 		}
 
+		// check it has exactly two peers
 		client, err := node.Client()
 		if err != nil {
 			return false, err
@@ -76,6 +100,7 @@ func TestNetworkSimulation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	// trigger a check every 100ms
 	trigger := make(chan discover.NodeID)
 	go triggerChecks(ctx, ids, trigger, 100*time.Millisecond)
 
@@ -91,6 +116,7 @@ func TestNetworkSimulation(t *testing.T) {
 		t.Fatalf("simulation failed: %s", result.Error)
 	}
 
+	// take a network snapshot and check it contains the correct topology
 	snap, err := network.Snapshot()
 	if err != nil {
 		t.Fatal(err)

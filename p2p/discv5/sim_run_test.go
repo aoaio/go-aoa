@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package discv5
 
 import (
@@ -27,11 +43,17 @@ func getnacl() (string, error) {
 	}
 }
 
+// runWithPlaygroundTime executes the caller
+// in the NaCl sandbox with faketime enabled.
+//
+// This function must be called from a Test* function
+// and the caller must skip the actual test when isHost is true.
 func runWithPlaygroundTime(t *testing.T) (isHost bool) {
 	if runtime.GOOS == "nacl" {
 		return false
 	}
 
+	// Get the caller.
 	callerPC, _, _, ok := runtime.Caller(1)
 	if !ok {
 		panic("can't get caller")
@@ -46,11 +68,15 @@ func runWithPlaygroundTime(t *testing.T) (isHost bool) {
 	}
 	testPattern := "^" + callerName + "$"
 
+	// Unfortunately runtime.faketime (playground time mode) only works on NaCl. The NaCl
+	// SDK must be installed and linked into PATH for this to work.
 	arch, err := getnacl()
 	if err != nil {
 		t.Skip(err)
 	}
 
+	// Compile and run the calling test using NaCl.
+	// The extra tag ensures that the TestMain function in sim_main_test.go is used.
 	cmd := exec.Command("go", "test", "-v", "-tags", "faketime_simulation", "-timeout", "100h", "-run", testPattern, ".")
 	cmd.Env = append([]string{"GOOS=nacl", "GOARCH=" + arch}, os.Environ()...)
 	stdout, _ := cmd.StdoutPipe()
@@ -61,11 +87,13 @@ func runWithPlaygroundTime(t *testing.T) (isHost bool) {
 		t.Error(err)
 	}
 
+	// Ensure that the test function doesn't run in the (non-NaCl) host process.
 	return true
 }
 
 func skipPlaygroundOutputHeaders(out io.Writer, in io.Reader) {
-
+	// Additional output can be printed without the headers
+	// before the NaCl binary starts running (e.g. compiler error messages).
 	bufin := bufio.NewReader(in)
 	output, err := bufin.ReadBytes(0)
 	output = bytes.TrimSuffix(output, []byte{0})
@@ -77,6 +105,7 @@ func skipPlaygroundOutputHeaders(out io.Writer, in io.Reader) {
 	}
 	bufin.UnreadByte()
 
+	// Playback header: 0 0 P B <8-byte time> <4-byte data length>
 	head := make([]byte, 4+8+4)
 	for {
 		if _, err := io.ReadFull(bufin, head); err != nil {
@@ -90,7 +119,7 @@ func skipPlaygroundOutputHeaders(out io.Writer, in io.Reader) {
 			io.Copy(out, bufin)
 			return
 		}
-
+		// Copy data until next header.
 		size := binary.BigEndian.Uint32(head[12:])
 		io.CopyN(out, bufin, int64(size))
 	}

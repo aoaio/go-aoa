@@ -112,6 +112,7 @@ SECP256K1_API jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1e
 SECP256K1_API jobjectArray JNICALL Java_org_bitcoin_NativeSecp256k1_secp256k1_1ecdh
   (JNIEnv* env, jclass classObject, jobject byteBufferObject, jlong ctx_l, jint publen);
 
+
 #ifdef __cplusplus
 }
 #endif

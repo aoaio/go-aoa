@@ -1,3 +1,20 @@
+// Copyright 2016 The aurora Authors
+// This file is part of the aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
+// +build none
 
 /*
 The ci command is called from Continuous Integration scripts.
@@ -20,11 +37,13 @@ Available commands are:
 
 For all commands, -n prevents execution of external programs (dry run mode).
 
-*/package main
+*/
+package main
 
 import (
 	"flag"
 	"fmt"
+	"github.com/Aurorachain/go-aoa/internal/build"
 	"go/parser"
 	"go/token"
 	"io/ioutil"
@@ -34,16 +53,16 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"github.com/Aurorachain/go-Aurora/internal/build"
 )
 
 var (
-
+	// Files that end up in the aoa*.zip archive.
 	gethArchiveFiles = []string{
 		"COPYING",
 		executablePath("aoa"),
 	}
 
+	// Files that end up in the aoa-alltools*.zip archive.
 	allToolsArchiveFiles = []string{
 		"COPYING",
 		executablePath("abigen"),
@@ -55,8 +74,9 @@ var (
 		executablePath("swarm"),
 		executablePath("wnode"),
 	}
-/*
 
+/*
+	// A debian package is created for all executables listed here.
 	debExecutables = []debExecutable{
 		{
 			Name:        "abigen",
@@ -92,7 +112,11 @@ var (
 		},
 	}
 */
-
+// Distros for which packages are created.
+// Note: vivid is unsupported because there is no golang-1.6 package for it.
+// Note: wily is unsupported because it was officially deprecated on lanchpad.
+// Note: yakkety is unsupported because it was officially deprecated on lanchpad.
+//debDistros = []string{"trusty", "xenial", "zesty", "artful"}
 )
 
 var GOBIN, _ = filepath.Abs(filepath.Join("build", "bin"))
@@ -116,26 +140,43 @@ func main() {
 	switch os.Args[1] {
 	case "install":
 		doInstall(os.Args[2:])
-
+		//	case "test":
+		//		doTest(os.Args[2:])
+		//	case "lint":
+		//		doLint(os.Args[2:])
+		//	case "archive":
+		//		doArchive(os.Args[2:])
+		//	case "debsrc":
+		//		doDebianSource(os.Args[2:])
+		//	case "nsis":
+		//		doWindowsInstaller(os.Args[2:])
+		//	case "aar":
+		//		doAndroidArchive(os.Args[2:])
+		//	case "xcode":
+		//		doXCodeFramework(os.Args[2:])
 	case "xgo":
 		doXgo(os.Args[2:])
-
+		//	case "purge":
+		//		doPurge(os.Args[2:])
 	default:
 		log.Fatal("unknown command ", os.Args[1])
 	}
 }
 
-func doInstall(cmdline []string) {
+// Compiling
 
+func doInstall(cmdline []string) {
+	//	p := fmt.Println
 	var (
 		arch = flag.String("arch", "", "Architecture to cross build for")
 		cc   = flag.String("cc", "", "C compiler to cross build with")
 	)
 	flag.CommandLine.Parse(cmdline)
 	env := build.Env()
-
+	// Check Go version. People regularly open issues about compilation
+	// failure with outdated Go. This should save them the trouble.
 	if !strings.Contains(runtime.Version(), "devel") {
-
+		// Figure out the minor version number since we can't textually compare (1.10 < 1.7)
 		var minor int
 		fmt.Sscanf(strings.TrimPrefix(runtime.Version(), "go1."), "%d", &minor)
 
@@ -146,7 +187,7 @@ func doInstall(cmdline []string) {
 			os.Exit(1)
 		}
 	}
-
+	// Compile packages given as arguments, or everything if there are no arguments.
 	packages := []string{"./..."}
 	if flag.NArg() > 0 {
 		packages = flag.Args()
@@ -160,14 +201,14 @@ func doInstall(cmdline []string) {
 		build.MustRun(goinstall)
 		return
 	}
-
+	// If we are cross compiling to ARMv5 ARMv6 or ARMv7, clean any previous builds
 	if *arch == "arm" {
 		os.RemoveAll(filepath.Join(runtime.GOROOT(), "pkg", runtime.GOOS+"_arm"))
 		for _, path := range filepath.SplitList(build.GOPATH()) {
 			os.RemoveAll(filepath.Join(path, "pkg", runtime.GOOS+"_arm"))
 		}
 	}
-
+	// Seems we are cross compiling, work around forbidden GOBIN
 	goinstall := goToolArch(*arch, *cc, "install", buildFlags(env)...)
 	goinstall.Args = append(goinstall.Args, "-v")
 	goinstall.Args = append(goinstall.Args, []string{"-buildmode", "archive"}...)
@@ -216,7 +257,8 @@ func goTool(subcmd string, args ...string) *exec.Cmd {
 func goToolArch(arch string, cc string, subcmd string, args ...string) *exec.Cmd {
 	cmd := build.GoTool(subcmd, args...)
 	if subcmd == "build" || subcmd == "install" || subcmd == "test" {
-
+		// Go CGO has a Windows linker error prior to 1.8 (https://github.com/golang/go/issues/8756).
+		// Work around issue by allowing multiple definitions for <1.8 builds.
 		var minor int
 		fmt.Sscanf(strings.TrimPrefix(runtime.Version(), "go1."), "%d", &minor)
 
@@ -243,6 +285,9 @@ func goToolArch(arch string, cc string, subcmd string, args ...string) *exec.Cmd
 	return cmd
 }
 
+// Running The Tests
+//
+// "tests" also includes static analysis tools such as vet.
 /*
 func doTest(cmdline []string) {
 	var (
@@ -257,10 +302,13 @@ func doTest(cmdline []string) {
 	}
 	packages = build.ExpandPackagesNoVendor(packages)
 
+	// Run analysis tools before the tests.
 	build.MustRun(goTool("vet", packages...))
 
+	// Run the actual tests.
 	gotest := goTool("test", buildFlags(env)...)
-
+	// Test a single package at a time. CI builders are slow
+	// and some tests run into timeouts under load.
 	gotest.Args = append(gotest.Args, "-p", "1")
 	if *coverage {
 		gotest.Args = append(gotest.Args, "-covermode=atomic", "-cover")
@@ -270,7 +318,7 @@ func doTest(cmdline []string) {
 	build.MustRun(gotest)
 }
 */
-
+// runs gometalinter on requested packages
 /*
 func doLint(cmdline []string) {
 	flag.CommandLine.Parse(cmdline)
@@ -279,10 +327,11 @@ func doLint(cmdline []string) {
 	if len(flag.CommandLine.Args()) > 0 {
 		packages = flag.CommandLine.Args()
 	}
-
+	// Get metalinter and install all supported linters
 	build.MustRun(goTool("get", "gopkg.in/alecthomas/gometalinter.v2"))
 	build.MustRunCommand(filepath.Join(GOBIN, "gometalinter.v2"), "--install")
 
+	// Run fast linters batched together
 	configs := []string{
 		"--vendor",
 		"--disable-all",
@@ -290,17 +339,18 @@ func doLint(cmdline []string) {
 		"--enable=gofmt",
 		"--enable=misspell",
 		"--enable=goconst",
-		"--min-occurrences=6", 
+		"--min-occurrences=6", // for goconst
 	}
 	build.MustRunCommand(filepath.Join(GOBIN, "gometalinter.v2"), append(configs, packages...)...)
 
+	// Run slow linters one by one
 	for _, linter := range []string{"unconvert", "gosimple"} {
 		configs = []string{"--vendor", "--deadline=10m", "--disable-all", "--enable=" + linter}
 		build.MustRunCommand(filepath.Join(GOBIN, "gometalinter.v2"), append(configs, packages...)...)
 	}
 }
 */
-
+// Release Packaging
 /*
 func doArchive(cmdline []string) {
 	var (
@@ -366,7 +416,7 @@ func archiveVersion(env build.Environment) string {
 }
 
 func archiveUpload(archive string, blobstore string, signer string) error {
-
+	// If signing was requested, generate the signature files
 	if signer != "" {
 		pgpkey, err := base64.StdEncoding.DecodeString(os.Getenv(signer))
 		if err != nil {
@@ -376,7 +426,7 @@ func archiveUpload(archive string, blobstore string, signer string) error {
 			return err
 		}
 	}
-
+	// If uploading to Azure was requested, push the archive possibly with its signature
 	if blobstore != "" {
 		auth := build.AzureBlobstoreConfig{
 			Account:   strings.Split(blobstore, "/")[0],
@@ -395,6 +445,7 @@ func archiveUpload(archive string, blobstore string, signer string) error {
 	return nil
 }
 
+// skips archiving for some build configurations.
 func maybeSkipArchive(env build.Environment) {
 	if env.IsPullRequest {
 		log.Printf("skipping because this is a PR build")
@@ -410,7 +461,7 @@ func maybeSkipArchive(env build.Environment) {
 	}
 }
 */
-
+// Debian Packaging
 /*
 func doDebianSource(cmdline []string) {
 	var (
@@ -424,6 +475,7 @@ func doDebianSource(cmdline []string) {
 	env := build.Env()
 	maybeSkipArchive(env)
 
+	// Import the signing key.
 	if b64key := os.Getenv("PPA_SIGNING_KEY"); b64key != "" {
 		key, err := base64.StdEncoding.DecodeString(b64key)
 		if err != nil {
@@ -434,6 +486,7 @@ func doDebianSource(cmdline []string) {
 		build.MustRun(gpg)
 	}
 
+	// Create the packages.
 	for _, distro := range debDistros {
 		meta := newDebMetadata(distro, *signer, env, now)
 		pkgdir := stageDebianSource(*workdir, meta)
@@ -475,9 +528,12 @@ func isUnstableBuild(env build.Environment) bool {
 type debMetadata struct {
 	Env build.Environment
 
+	// go-aurora version being built. Note that this
+	// is not the debian package version. The package version
+	// is constructed by VersionString.
 	Version string
 
-	Author       string 
+	Author       string // "name <email>", also selects signing key
 	Distro, Time string
 	Executables  []debExecutable
 }
@@ -488,7 +544,7 @@ type debExecutable struct {
 
 func newDebMetadata(distro, author string, env build.Environment, t time.Time) debMetadata {
 	if author == "" {
-
+		// No signing key, use default author.
 		author = "aurora Builds <qkz@aurorachain.org>"
 	}
 	return debMetadata{
@@ -501,6 +557,8 @@ func newDebMetadata(distro, author string, env build.Environment, t time.Time) d
 	}
 }
 
+// Name returns the name of the metapackage that depends
+// on all executable packages.
 func (meta debMetadata) Name() string {
 	if isUnstableBuild(meta.Env) {
 		return "aurora-unstable"
@@ -508,6 +566,7 @@ func (meta debMetadata) Name() string {
 	return "aurora"
 }
 
+// VersionString returns the debian version of the packages.
 func (meta debMetadata) VersionString() string {
 	vsn := meta.Version
 	if meta.Env.Buildnum != "" {
@@ -519,6 +578,7 @@ func (meta debMetadata) VersionString() string {
 	return vsn
 }
 
+// ExeList returns the list of all executable packages.
 func (meta debMetadata) ExeList() string {
 	names := make([]string, len(meta.Executables))
 	for i, e := range meta.Executables {
@@ -527,6 +587,7 @@ func (meta debMetadata) ExeList() string {
 	return strings.Join(names, ", ")
 }
 
+// ExeName returns the package name of an executable package.
 func (meta debMetadata) ExeName(exe debExecutable) string {
 	if isUnstableBuild(meta.Env) {
 		return exe.Name + "-unstable"
@@ -534,9 +595,18 @@ func (meta debMetadata) ExeName(exe debExecutable) string {
 	return exe.Name
 }
 
+// ExeConflicts returns the content of the Conflicts field
+// for executable packages.
 func (meta debMetadata) ExeConflicts(exe debExecutable) string {
 	if isUnstableBuild(meta.Env) {
-
+		// Set up the conflicts list so that the *-unstable packages
+		// cannot be installed alongside the regular version.
+		//
+		// https://www.debian.org/doc/debian-policy/ch-relationships.html
+		// is very explicit about Conflicts: and says that Breaks: should
+		// be preferred and the conflicting files should be handled via
+		// alternates. We might do this eventually but using a conflict is
+		// easier now.
 		return "aurora, " + exe.Name
 	}
 	return ""
@@ -550,8 +620,10 @@ func stageDebianSource(tmpdir string, meta debMetadata) (pkgdir string) {
 		log.Fatal(err)
 	}
 
+	// Copy the source code.
 	build.MustRunCommand("git", "checkout-index", "-a", "--prefix", pkgdir+string(filepath.Separator))
 
+	// Put the debian build files in place.
 	debian := filepath.Join(pkgdir, "debian")
 	build.Render("build/deb.rules", filepath.Join(debian, "rules"), 0755, meta)
 	build.Render("build/deb.changelog", filepath.Join(debian, "changelog"), 0644, meta)
@@ -569,10 +641,10 @@ func stageDebianSource(tmpdir string, meta debMetadata) (pkgdir string) {
 	return pkgdir
 }
 */
-
+// Windows installer
 /*
 func doWindowsInstaller(cmdline []string) {
-
+	// Parse the flags and make skip installer generation on PRs
 	var (
 		arch    = flag.String("arch", runtime.GOARCH, "Architecture for cross build packaging")
 		signer  = flag.String("signer", "", `Environment variable holding the signing key (e.g. WINDOWS_SIGNING_KEY)`)
@@ -584,13 +656,14 @@ func doWindowsInstaller(cmdline []string) {
 	env := build.Env()
 	maybeSkipArchive(env)
 
+	// Aggregate binaries that are included in the installer
 	var (
 		devTools []string
 		allTools []string
 		gethTool string
 	)
 	for _, file := range allToolsArchiveFiles {
-		if file == "COPYING" { 
+		if file == "COPYING" { // license, copied later
 			continue
 		}
 		allTools = append(allTools, filepath.Base(file))
@@ -601,6 +674,8 @@ func doWindowsInstaller(cmdline []string) {
 		}
 	}
 
+	// Render NSIS scripts: Installer NSIS contains two installer sections,
+	// first section contains the aoa binary, second section holds the dev tools.
 	templateData := map[string]interface{}{
 		"License":  "COPYING",
 		"Geth":     gethTool,
@@ -614,6 +689,9 @@ func doWindowsInstaller(cmdline []string) {
 	build.CopyFile(filepath.Join(*workdir, "SimpleFC.dll"), "build/nsis.simplefc.dll", 0755)
 	build.CopyFile(filepath.Join(*workdir, "COPYING"), "COPYING", 0755)
 
+	// Build the installer. This assumes that all the needed files have been previously
+	// built (don't mix building and packaging to keep cross compilation complexity to a
+	// minimum).
 	version := strings.Split(build.VERSION(), ".")
 	if env.Commit != "" {
 		version[2] += "-" + env.Commit[:8]
@@ -628,54 +706,58 @@ func doWindowsInstaller(cmdline []string) {
 		filepath.Join(*workdir, "aoa.nsi"),
 	)
 
+	// Sign and publish installer.
 	if err := archiveUpload(installer, *upload, *signer); err != nil {
 		log.Fatal(err)
 	}
 }
 */
-
+// Android archives
 /*
 func doAndroidArchive(cmdline []string) {
 	var (
 		local  = flag.Bool("local", false, `Flag whether we're only doing a local build (skip Maven artifacts)`)
 		signer = flag.String("signer", "", `Environment variable holding the signing key (e.g. ANDROID_SIGNING_KEY)`)
-		deploy = flag.String("deploy", "", `Destination to deploy the archive (usually "https:
+		deploy = flag.String("deploy", "", `Destination to deploy the archive (usually "https://oss.sonatype.org")`)
 		upload = flag.String("upload", "", `Destination to upload the archive (usually "gethstore/builds")`)
 	)
 	flag.CommandLine.Parse(cmdline)
 	env := build.Env()
 
+	// Sanity check that the SDK and NDK are installed and set
 	if os.Getenv("ANDROID_HOME") == "" {
 		log.Fatal("Please ensure ANDROID_HOME points to your Android SDK")
 	}
 	if os.Getenv("ANDROID_NDK") == "" {
 		log.Fatal("Please ensure ANDROID_NDK points to your Android NDK")
 	}
-
+	// Build the Android archive and Maven resources
 	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile"))
 	build.MustRun(gomobileTool("init", "--ndk", os.Getenv("ANDROID_NDK")))
-	build.MustRun(gomobileTool("bind", "--target", "android", "--javapkg", "io.aurorachain", "-v", "github.com/Aurorachain/go-Aurora/mobile"))
+	build.MustRun(gomobileTool("bind", "--target", "android", "--javapkg", "io.aurorachain", "-v", "github.com/Aurorachain/go-aoa/mobile"))
 
 	if *local {
-
+		// If we're building locally, copy bundle to build dir and skip Maven
 		os.Rename("aoa.aar", filepath.Join(GOBIN, "aoa.aar"))
 		return
 	}
 	meta := newMavenMetadata(env)
 	build.Render("build/mvn.pom", meta.Package+".pom", 0755, meta)
 
+	// Skip Maven deploy and Azure upload for PR builds
 	maybeSkipArchive(env)
 
+	// Sign and upload the archive to Azure
 	archive := "aoa-" + archiveBasename("android", env) + ".aar"
 	os.Rename("aoa.aar", archive)
 
 	if err := archiveUpload(archive, *upload, *signer); err != nil {
 		log.Fatal(err)
 	}
-
+	// Sign and upload all the artifacts to Maven Central
 	os.Rename(archive, meta.Package+".aar")
 	if *signer != "" && *deploy != "" {
-
+		// Import the signing key into the local GPG instance
 		if b64key := os.Getenv(*signer); b64key != "" {
 			key, err := base64.StdEncoding.DecodeString(b64key)
 			if err != nil {
@@ -685,7 +767,7 @@ func doAndroidArchive(cmdline []string) {
 			gpg.Stdin = bytes.NewReader(key)
 			build.MustRun(gpg)
 		}
-
+		// Upload the artifacts to Sonatype and/or Maven Central
 		repo := *deploy + "/service/local/staging/deploy/maven2"
 		if meta.Develop {
 			repo = *deploy + "/content/repositories/snapshots"
@@ -725,19 +807,19 @@ type mavenContributor struct {
 }
 
 func newMavenMetadata(env build.Environment) mavenMetadata {
-
+	// Collect the list of authors from the repo root
 	contribs := []mavenContributor{}
 	if authors, err := os.Open("AUTHORS"); err == nil {
 		defer authors.Close()
 
 		scanner := bufio.NewScanner(authors)
 		for scanner.Scan() {
-
+			// Skip any whitespace from the authors list
 			line := strings.TrimSpace(scanner.Text())
 			if line == "" || line[0] == '#' {
 				continue
 			}
-
+			// Split the author and insert as a contributor
 			re := regexp.MustCompile("([^<]+) <(.+)>")
 			parts := re.FindStringSubmatch(line)
 			if len(parts) == 3 {
@@ -745,7 +827,7 @@ func newMavenMetadata(env build.Environment) mavenMetadata {
 			}
 		}
 	}
-
+	// Render the version and package strings
 	version := build.VERSION()
 	if isUnstableBuild(env) {
 		version += "-SNAPSHOT"
@@ -758,7 +840,7 @@ func newMavenMetadata(env build.Environment) mavenMetadata {
 	}
 }
 */
-
+// XCode frameworks
 /*
 func doXCodeFramework(cmdline []string) {
 	var (
@@ -770,12 +852,13 @@ func doXCodeFramework(cmdline []string) {
 	flag.CommandLine.Parse(cmdline)
 	env := build.Env()
 
+	// Build the iOS XCode framework
 	build.MustRun(goTool("get", "golang.org/x/mobile/cmd/gomobile"))
 	build.MustRun(gomobileTool("init"))
-	bind := gomobileTool("bind", "--target", "ios", "--tags", "ios", "-v", "github.com/Aurorachain/go-Aurora/mobile")
+	bind := gomobileTool("bind", "--target", "ios", "--tags", "ios", "-v", "github.com/Aurorachain/go-aoa/mobile")
 
 	if *local {
-
+		// If we're building locally, use the build folder and stop afterwards
 		bind.Dir, _ = filepath.Abs(GOBIN)
 		build.MustRun(bind)
 		return
@@ -788,12 +871,14 @@ func doXCodeFramework(cmdline []string) {
 	build.MustRun(bind)
 	build.MustRunCommand("tar", "-zcvf", archive+".tar.gz", archive)
 
+	// Skip CocoaPods deploy and Azure upload for PR builds
 	maybeSkipArchive(env)
 
+	// Sign and upload the framework to Azure
 	if err := archiveUpload(archive+".tar.gz", *upload, *signer); err != nil {
 		log.Fatal(err)
 	}
-
+	// Prepare and upload a PodSpec to CocoaPods
 	if *deploy != "" {
 		meta := newPodMetadata(env, archive)
 		build.Render("build/pod.podspec", "Geth.podspec", 0755, meta)
@@ -815,19 +900,19 @@ type podContributor struct {
 }
 
 func newPodMetadata(env build.Environment, archive string) podMetadata {
-
+	// Collect the list of authors from the repo root
 	contribs := []podContributor{}
 	if authors, err := os.Open("AUTHORS"); err == nil {
 		defer authors.Close()
 
 		scanner := bufio.NewScanner(authors)
 		for scanner.Scan() {
-
+			// Skip any whitespace from the authors list
 			line := strings.TrimSpace(scanner.Text())
 			if line == "" || line[0] == '#' {
 				continue
 			}
-
+			// Split the author and insert as a contributor
 			re := regexp.MustCompile("([^<]+) <(.+)>")
 			parts := re.FindStringSubmatch(line)
 			if len(parts) == 3 {
@@ -847,24 +932,26 @@ func newPodMetadata(env build.Environment, archive string) podMetadata {
 	}
 }
 */
+// Cross compilation
 
 func doXgo(cmdline []string) {
-
+	//	p := fmt.Println
 	var (
 		alltools = flag.Bool("alltools", false, `Flag whether we're building all known tools, or only on in particular`)
 	)
 	flag.CommandLine.Parse(cmdline)
 	env := build.Env()
-
+	// Make sure xgo is available for cross compilation
 	gogetxgo := goTool("get", "github.com/karalabe/xgo")
 	build.MustRun(gogetxgo)
 
+	// If all tools building is requested, build everything the builder wants
 	args := append(buildFlags(env), flag.Args()...)
 	if *alltools {
 		args = append(args, []string{"--dest", GOBIN}...)
 		for _, res := range allToolsArchiveFiles {
 			if strings.HasPrefix(res, GOBIN) {
-
+				// Binary tool found, cross build it explicitly
 				args = append(args, "./"+filepath.Join("cmd", filepath.Base(res)))
 				xgo := xgoTool(args)
 				build.MustRun(xgo)
@@ -873,7 +960,7 @@ func doXgo(cmdline []string) {
 		}
 		return
 	}
-
+	// Otherwise xxecute the explicit cross compilation
 	path := args[len(args)-1]
 	args = append(args[:len(args)-1], []string{"--dest", GOBIN, path}...)
 
@@ -896,6 +983,7 @@ func xgoTool(args []string) *exec.Cmd {
 	return cmd
 }
 
+// Binary distribution cleanups
 /*
 func doPurge(cmdline []string) {
 	var (
@@ -908,7 +996,7 @@ func doPurge(cmdline []string) {
 		log.Printf("skipping because not a cron job")
 		os.Exit(0)
 	}
-
+	// Create the azure authentication and list the current archives
 	auth := build.AzureBlobstoreConfig{
 		Account:   strings.Split(*store, "/")[0],
 		Token:     os.Getenv("AZURE_BLOBSTORE_TOKEN"),
@@ -918,7 +1006,7 @@ func doPurge(cmdline []string) {
 	if err != nil {
 		log.Fatal(err)
 	}
-
+	// Iterate over the blobs, collect and sort all unstable builds
 	for i := 0; i < len(blobs); i++ {
 		if !strings.Contains(blobs[i].Name, "unstable") {
 			blobs = append(blobs[:i], blobs[i+1:]...)
@@ -940,7 +1028,7 @@ func doPurge(cmdline []string) {
 			}
 		}
 	}
-
+	// Filter out all archives more recent that the given threshold
 	for i, blob := range blobs {
 		timestamp, _ := time.Parse(time.RFC1123, blob.Properties.LastModified)
 		if time.Since(timestamp) < time.Duration(*limit)*24*time.Hour {
@@ -948,7 +1036,7 @@ func doPurge(cmdline []string) {
 			break
 		}
 	}
-
+	// Delete all marked as such and return
 	if err := build.AzureBlobstoreDelete(auth, blobs); err != nil {
 		log.Fatal(err)
 	}

@@ -5,6 +5,7 @@
 
 load("group_prover.sage")
 
+
 class affinepoint:
   def __init__(self, x, y, infinity=0):
     self.x = x
@@ -12,6 +13,7 @@ class affinepoint:
     self.infinity = infinity
   def __str__(self):
     return "affinepoint(x=%s,y=%s,inf=%s)" % (self.x, self.y, self.infinity)
+
 
 class jacobianpoint:
   def __init__(self, x, y, z, infinity=0):
@@ -22,8 +24,10 @@ class jacobianpoint:
   def __str__(self):
     return "jacobianpoint(X=%s,Y=%s,Z=%s,inf=%s)" % (self.X, self.Y, self.Z, self.Infinity)
 
+
 def point_at_infinity():
   return jacobianpoint(1, 1, 1, 1)
+
 
 def negate(p):
   if p.__class__ == affinepoint:
@@ -32,15 +36,18 @@ def negate(p):
     return jacobianpoint(p.X, -p.Y, p.Z)
   assert(False)
 
+
 def on_weierstrass_curve(A, B, p):
   """Return a set of zero-expressions for an affine point to be on the curve"""
   return constraints(zero={p.x^3 + A*p.x + B - p.y^2: 'on_curve'})
+
 
 def tangential_to_weierstrass_curve(A, B, p12, p3):
   """Return a set of zero-expressions for ((x12,y12),(x3,y3)) to be a line that is tangential to the curve at (x12,y12)"""
   return constraints(zero={
     (p12.y - p3.y) * (p12.y * 2) - (p12.x^2 * 3 + A) * (p12.x - p3.x): 'tangential_to_curve'
   })
+
 
 def colinear(p1, p2, p3):
   """Return a set of zero-expressions for ((x1,y1),(x2,y2),(x3,y3)) to be collinear"""
@@ -50,14 +57,18 @@ def colinear(p1, p2, p3):
     (p3.y - p1.y) * (p3.x - p2.x) - (p3.y - p2.y) * (p3.x - p1.x): 'colinear_3'
   })
 
+
 def good_affine_point(p):
   return constraints(nonzero={p.x : 'nonzero_x', p.y : 'nonzero_y'})
+
 
 def good_jacobian_point(p):
   return constraints(nonzero={p.X : 'nonzero_X', p.Y : 'nonzero_Y', p.Z^6 : 'nonzero_Z'})
 
+
 def good_point(p):
   return constraints(nonzero={p.Z^6 : 'nonzero_X'})
+
 
 def finite(p, *affine_fns):
   con = good_point(p) + constraints(zero={p.Infinity : 'finite_point'})
@@ -68,6 +79,7 @@ def finite(p, *affine_fns):
 
 def infinite(p):
   return constraints(nonzero={p.Infinity : 'infinite_point'})
+
 
 def law_jacobian_weierstrass_add(A, B, pa, pb, pA, pB, pC):
   """Check whether the passed set of coordinates is a valid Jacobian add, given assumptions"""
@@ -84,6 +96,7 @@ def law_jacobian_weierstrass_add(A, B, pa, pb, pA, pB, pC):
              colinear(pa, pb, negate(pc))))
   return (assumeLaw, require)
 
+
 def law_jacobian_weierstrass_double(A, B, pa, pb, pA, pB, pC):
   """Check whether the passed set of coordinates is a valid Jacobian doubling, given assumptions"""
   assumeLaw = (good_affine_point(pa) +
@@ -99,6 +112,7 @@ def law_jacobian_weierstrass_double(A, B, pa, pb, pA, pB, pC):
              tangential_to_weierstrass_curve(A, B, pa, negate(pc))))
   return (assumeLaw, require)
 
+
 def law_jacobian_weierstrass_add_opposites(A, B, pa, pb, pA, pB, pC):
   assumeLaw = (good_affine_point(pa) +
                good_affine_point(pb) +
@@ -112,6 +126,7 @@ def law_jacobian_weierstrass_add_opposites(A, B, pa, pb, pA, pB, pC):
   require = infinite(pC)
   return (assumeLaw, require)
 
+
 def law_jacobian_weierstrass_add_infinite_a(A, B, pa, pb, pA, pB, pC):
   assumeLaw = (good_affine_point(pa) +
                good_affine_point(pb) +
@@ -122,6 +137,7 @@ def law_jacobian_weierstrass_add_infinite_a(A, B, pa, pb, pA, pB, pC):
                finite(pB))
   require = finite(pC, lambda pc: constraints(zero={pc.x - pb.x : 'c.x=b.x', pc.y - pb.y : 'c.y=b.y'}))
   return (assumeLaw, require)
+
 
 def law_jacobian_weierstrass_add_infinite_b(A, B, pa, pb, pA, pB, pC):
   assumeLaw = (good_affine_point(pa) +
@@ -134,6 +150,7 @@ def law_jacobian_weierstrass_add_infinite_b(A, B, pa, pb, pA, pB, pC):
   require = finite(pC, lambda pc: constraints(zero={pc.x - pa.x : 'c.x=a.x', pc.y - pa.y : 'c.y=a.y'}))
   return (assumeLaw, require)
 
+
 def law_jacobian_weierstrass_add_infinite_ab(A, B, pa, pb, pA, pB, pC):
   assumeLaw = (good_affine_point(pa) +
                good_affine_point(pb) +
@@ -144,6 +161,7 @@ def law_jacobian_weierstrass_add_infinite_ab(A, B, pa, pb, pA, pB, pC):
   require = infinite(pC)
   return (assumeLaw, require)
 
+
 laws_jacobian_weierstrass = {
   'add': law_jacobian_weierstrass_add,
   'double': law_jacobian_weierstrass_double,
@@ -152,6 +170,7 @@ laws_jacobian_weierstrass = {
   'add_infinite_b': law_jacobian_weierstrass_add_infinite_b,
   'add_infinite_ab': law_jacobian_weierstrass_add_infinite_ab
 }
+
 
 def check_exhaustive_jacobian_weierstrass(name, A, B, branches, formula, p):
   """Verify an implementation of addition of Jacobian points on a Weierstrass curve, by executing and validating the result for every possible addition in a prime field"""
@@ -194,6 +213,7 @@ def check_exhaustive_jacobian_weierstrass(name, A, B, branches, formula, p):
                       if not r:
                         print "  failure in branch %i for (%s,%s,%s,%s) + (%s,%s,%s,%s) = (%s,%s,%s,%s): %s" % (branch, pA.X, pA.Y, pA.Z, pA.Infinity, pB.X, pB.Y, pB.Z, pB.Infinity, pC.X, pC.Y, pC.Z, pC.Infinity, e)
   print
+
 
 def check_symbolic_function(R, assumeAssert, assumeBranch, f, A, B, pa, pb, pA, pB, pC):
   assumeLaw, require = f(A, B, pa, pb, pA, pB, pC)

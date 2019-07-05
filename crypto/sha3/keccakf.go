@@ -1,7 +1,12 @@
+// Copyright 2014 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 //  +build !amd64 appengine gccgo
 
 package sha3
 
+// rc stores the round constants for use in the ι step.
 var rc = [24]uint64{
 	0x0000000000000001,
 	0x0000000000008082,
@@ -29,12 +34,18 @@ var rc = [24]uint64{
 	0x8000000080008008,
 }
 
+// keccakF1600 applies the Keccak permutation to a 1600b-wide
+// state represented as a slice of 25 uint64s.
 func keccakF1600(a *[25]uint64) {
-
+	// Implementation translated from Keccak-inplace.c
+	// in the keccak reference code.
 	var t, bc0, bc1, bc2, bc3, bc4, d0, d1, d2, d3, d4 uint64
 
 	for i := 0; i < 24; i += 4 {
+		// Combines the 5 steps in each round into 2 steps.
+		// Unrolls 4 rounds per loop and spreads some steps across rounds.
 
+		// Round 1
 		bc0 = a[0] ^ a[5] ^ a[10] ^ a[15] ^ a[20]
 		bc1 = a[1] ^ a[6] ^ a[11] ^ a[16] ^ a[21]
 		bc2 = a[2] ^ a[7] ^ a[12] ^ a[17] ^ a[22]
@@ -125,6 +136,7 @@ func keccakF1600(a *[25]uint64) {
 		a[8] = bc3 ^ (bc0 &^ bc4)
 		a[14] = bc4 ^ (bc1 &^ bc0)
 
+		// Round 2
 		bc0 = a[0] ^ a[5] ^ a[10] ^ a[15] ^ a[20]
 		bc1 = a[1] ^ a[6] ^ a[11] ^ a[16] ^ a[21]
 		bc2 = a[2] ^ a[7] ^ a[12] ^ a[17] ^ a[22]
@@ -215,6 +227,7 @@ func keccakF1600(a *[25]uint64) {
 		a[3] = bc3 ^ (bc0 &^ bc4)
 		a[19] = bc4 ^ (bc1 &^ bc0)
 
+		// Round 3
 		bc0 = a[0] ^ a[5] ^ a[10] ^ a[15] ^ a[20]
 		bc1 = a[1] ^ a[6] ^ a[11] ^ a[16] ^ a[21]
 		bc2 = a[2] ^ a[7] ^ a[12] ^ a[17] ^ a[22]
@@ -305,6 +318,7 @@ func keccakF1600(a *[25]uint64) {
 		a[18] = bc3 ^ (bc0 &^ bc4)
 		a[4] = bc4 ^ (bc1 &^ bc0)
 
+		// Round 4
 		bc0 = a[0] ^ a[5] ^ a[10] ^ a[15] ^ a[20]
 		bc1 = a[1] ^ a[6] ^ a[11] ^ a[16] ^ a[21]
 		bc2 = a[2] ^ a[7] ^ a[12] ^ a[17] ^ a[22]

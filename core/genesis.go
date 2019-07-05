@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package core
 
 import (
@@ -6,26 +22,32 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/Aurorachain/go-Aurora/aoadb"
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/common/hexutil"
-	"github.com/Aurorachain/go-Aurora/common/math"
-	"github.com/Aurorachain/go-Aurora/consensus/delegatestate"
-	"github.com/Aurorachain/go-Aurora/core/state"
-	"github.com/Aurorachain/go-Aurora/core/types"
-	"github.com/Aurorachain/go-Aurora/crypto/sha3"
-	"github.com/Aurorachain/go-Aurora/log"
-	"github.com/Aurorachain/go-Aurora/params"
-	"github.com/Aurorachain/go-Aurora/rlp"
-	"github.com/Aurorachain/go-Aurora/util"
+	"github.com/Aurorachain/go-aoa/aoadb"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/common/hexutil"
+	"github.com/Aurorachain/go-aoa/common/math"
+	"github.com/Aurorachain/go-aoa/consensus/delegatestate"
+	"github.com/Aurorachain/go-aoa/core/state"
+	"github.com/Aurorachain/go-aoa/core/types"
+	"github.com/Aurorachain/go-aoa/crypto/sha3"
+	"github.com/Aurorachain/go-aoa/log"
+	"github.com/Aurorachain/go-aoa/params"
+	"github.com/Aurorachain/go-aoa/rlp"
+	"github.com/Aurorachain/go-aoa/util"
 	"math/big"
 	"strings"
 )
+
+//go:generate gencodec -type Genesis -field-override genesisSpecMarshaling -out gen_genesis.go
+//go:generate gencodec -type GenesisAccount -field-override genesisAccountMarshaling -out gen_genesis_account.go
+//go:generate go run genMkAgentsFile.go -number 6 -password password -keystore-dir .
 
 var errGenesisNoConfig = errors.New("genesis has no chain configuration")
 
 const genesisExtra = "AOA genesis"
 
+// Genesis specifies the header fields, state of a genesis block. It also defines hard
+// fork switch-over blocks through the chain configuration.
 type Genesis struct {
 	Config    *params.ChainConfig `json:"config"`
 	Timestamp uint64              `json:"timestamp"`
@@ -34,12 +56,14 @@ type Genesis struct {
 	Coinbase  common.Address      `json:"coinbase"`
 	Alloc     GenesisAlloc        `json:"alloc"      gencodec:"required"`
 	Agents    GenesisAgents       `json:"agents"     gencodec:"required"`
-
+	// These fields are used for consensus tests. Please don't use them
+	// in actual genesis blocks.
 	Number     uint64      `json:"number"`
 	GasUsed    uint64      `json:"gasUsed"`
 	ParentHash common.Hash `json:"parentHash"`
 }
 
+// GenesisAlloc specifies the initial state that is part of the genesis block.
 type GenesisAlloc map[common.Address]GenesisAccount
 
 type GenesisAgents []types.Candidate
@@ -56,14 +80,16 @@ func (ga *GenesisAlloc) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// GenesisAccount is an account in the state of the genesis block.
 type GenesisAccount struct {
 	Code       []byte                      `json:"code,omitempty"`
 	Storage    map[common.Hash]common.Hash `json:"storage,omitempty"`
 	Balance    *big.Int                    `json:"balance" gencodec:"required"`
 	Nonce      uint64                      `json:"nonce,omitempty"`
-	PrivateKey []byte                      `json:"secretKey,omitempty"`
+	PrivateKey []byte                      `json:"secretKey,omitempty"` // for tests
 }
 
+// field type overrides for gencodec
 type genesisSpecMarshaling struct {
 	Timestamp math.HexOrDecimal64
 	ExtraData hexutil.Bytes
@@ -81,6 +107,8 @@ type genesisAccountMarshaling struct {
 	PrivateKey hexutil.Bytes
 }
 
+// storageJSON represents a 256 bit byte array, but allows less than 256 bits when
+// unmarshaling from hex.
 type storageJSON common.Hash
 
 func (h *storageJSON) UnmarshalText(text []byte) error {
@@ -88,7 +116,7 @@ func (h *storageJSON) UnmarshalText(text []byte) error {
 	if len(text) > 64 {
 		return fmt.Errorf("too many hex characters in storage key/value %q", text)
 	}
-	offset := len(h) - len(text)/2
+	offset := len(h) - len(text)/2 // pad on the left
 	if _, err := hex.Decode(h[offset:], text); err != nil {
 		fmt.Println(err)
 		return fmt.Errorf("invalid hex storage key/value %q", text)
@@ -100,6 +128,8 @@ func (h storageJSON) MarshalText() ([]byte, error) {
 	return hexutil.Bytes(h[:]).MarshalText()
 }
 
+// GenesisMismatchError is raised when trying to overwrite an existing
+// genesis block with an incompatible one.
 type GenesisMismatchError struct {
 	Stored, New common.Hash
 }
@@ -108,11 +138,25 @@ func (e *GenesisMismatchError) Error() string {
 	return fmt.Sprintf("database already contains an incompatible genesis block (have %x, new %x)", e.Stored[:8], e.New[:8])
 }
 
+// SetupGenesisBlock writes or updates the genesis block in db.
+// The block that will be used is:
+//
+//                          genesis == nil       genesis != nil
+//                       +------------------------------------------
+//     db has no genesis |  main-net default  |  genesis
+//     db has genesis    |  from DB           |  genesis (if compatible)
+//
+// The stored chain configuration will be updated if it is compatible (i.e. does not
+// specify a fork block below the local head block). In case of a conflict, the
+// error is a *params.ConfigCompatError and the new, unwritten config is returned.
+//
+// The returned chain configuration is never nil.
 func SetupGenesisBlock(db aoadb.Database, genesis *Genesis) (*params.ChainConfig, common.Hash, *Genesis, error) {
 	if genesis != nil && genesis.Config == nil {
 		return params.AllAuroraProtocolChanges, common.Hash{}, genesis, errGenesisNoConfig
 	}
 
+	// Just commit the new block if there is no stored genesis block.
 	stored := GetCanonicalHash(db, 0)
 	if (stored == common.Hash{}) {
 		if genesis == nil {
@@ -125,6 +169,7 @@ func SetupGenesisBlock(db aoadb.Database, genesis *Genesis) (*params.ChainConfig
 		return genesis.Config, block.Hash(), genesis, err
 	}
 
+	// Check whether the genesis block is already written.
 	if genesis != nil {
 		block, _, _ := genesis.ToBlock()
 		hash := block.Hash()
@@ -133,21 +178,25 @@ func SetupGenesisBlock(db aoadb.Database, genesis *Genesis) (*params.ChainConfig
 		}
 	}
 
+	// Get the existing chain configuration.
 	newcfg := genesis.configOrDefault(stored)
 	storedcfg, err := GetChainConfig(db, stored)
 	if err != nil {
 		if err == ErrChainConfigNotFound {
-
+			// This case happens if a genesis write was interrupted.
 			log.Warn("Found genesis block without chain config")
 			err = WriteChainConfig(db, stored, newcfg)
 		}
 		return newcfg, stored, genesis, err
 	}
-
+	// Special case: don't change the existing config of a non-mainnet chain if no new
+	// config is supplied. These chains would get AllProtocolChanges (and a compat error)
+	// if we just continued here.
 	if genesis == nil && stored != params.MainnetGenesisHash {
 		return storedcfg, stored, genesis, nil
 	}
-
+	// Check config compatibility and write the config. Compatibility errors
+	// are returned to the caller unless we're already at block zero.
 	height := GetBlockNumber(db, GetHeadHeaderHash(db))
 	if height == missingNumber {
 		return newcfg, stored, genesis, fmt.Errorf("missing block number for head header hash")
@@ -172,6 +221,7 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 	}
 }
 
+// ToBlock creates the block and state of a genesis specification.
 func (g *Genesis) ToBlock() (*types.Block, *state.StateDB, *delegatestate.DelegateDB) {
 	db, _ := aoadb.NewMemDatabase()
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(db))
@@ -185,7 +235,7 @@ func (g *Genesis) ToBlock() (*types.Block, *state.StateDB, *delegatestate.Delega
 		}
 	}
 	root := statedb.IntermediateRoot(false)
-
+	// add agents
 	for _, agent := range g.Agents {
 		addr := common.HexToAddress(agent.Address)
 		obj := delegatedb.GetOrNewStateObject(addr, agent.Nickname, agent.RegisterTime)
@@ -225,6 +275,8 @@ func (g *Genesis) ToBlock() (*types.Block, *state.StateDB, *delegatestate.Delega
 	return types.NewBlock(head, nil, nil), statedb, delegatedb
 }
 
+// Commit writes the block and state of a genesis specification to the database.
+// The block is committed as the canonical head block.
 func (g *Genesis) Commit(db aoadb.Database) (*types.Block, error) {
 	block, statedb, delegatedb := g.ToBlock()
 	if block.Number().Sign() != 0 {
@@ -261,6 +313,8 @@ func (g *Genesis) Commit(db aoadb.Database) (*types.Block, error) {
 	return block, WriteChainConfig(db, block.Hash(), config)
 }
 
+// MustCommit writes the genesis block and state to db, panicking on error.
+// The block is committed as the canonical head block.
 func (g *Genesis) MustCommit(db aoadb.Database) *types.Block {
 	block, err := g.Commit(db)
 	if err != nil {
@@ -269,11 +323,13 @@ func (g *Genesis) MustCommit(db aoadb.Database) *types.Block {
 	return block
 }
 
+// GenesisBlockForTesting creates and writes a block in which addr has the given wei balance.
 func GenesisBlockForTesting(db aoadb.Database, addr common.Address, balance *big.Int) *types.Block {
 	g := Genesis{Alloc: GenesisAlloc{addr: {Balance: balance}}}
 	return g.MustCommit(db)
 }
 
+// DefaultGenesisBlock returns the Aurora main net genesis block.
 func DefaultGenesisBlock() *Genesis {
 	encodeBytes := hexutil.Encode([]byte(genesisExtra))
 	agentName := hexutil.MustDecode(encodeBytes)
@@ -287,6 +343,7 @@ func DefaultGenesisBlock() *Genesis {
 	}
 }
 
+// DefaultTestnetGenesisBlock returns the Ropsten network genesis block.
 func DefaultTestnetGenesisBlock() *Genesis {
 	encodeBytes := hexutil.Encode([]byte(genesisExtra))
 	agentName := hexutil.MustDecode(encodeBytes)
@@ -300,34 +357,28 @@ func DefaultTestnetGenesisBlock() *Genesis {
 	}
 }
 
-func DefaultRinkebyGenesisBlock() *Genesis {
-	encodeBytes := hexutil.Encode([]byte(genesisExtra))
-	agentName := hexutil.MustDecode(encodeBytes)
-	return &Genesis{
-		Config:    params.AllAuroraProtocolChanges,
-		Timestamp: 1492009146,
-		ExtraData: agentName,
-		GasLimit:  4700000,
-		Alloc:     decodePrealloc(rinkebyAllocData),
-	}
-}
-
-func DeveloperGenesisBlock(developer common.Address) *Genesis {
-
+// DeveloperGenesisBlock returns the 'aoa --dev' genesis block. Note, this must
+// be seeded with the
+func DeveloperGenesisBlock(developers []common.Address) *Genesis {
+	// Override the default period to the user requested one
 	config := *params.AllAuroraProtocolChanges
 	encodeBytes := hexutil.Encode([]byte(genesisExtra))
 	agentName := hexutil.MustDecode(encodeBytes)
 	var geneAgents GenesisAgents
 	candidates := make([]types.Candidate, 0)
-	candidates = append(candidates, types.Candidate{Address: strings.ToLower(developer.Hex()), Vote: 1, Nickname: developer.Hex(), RegisterTime: uint64(11111112111)})
+	for _, developer := range developers {
+		candidates = append(candidates, types.Candidate{Address: strings.ToLower(developer.Hex()), Vote: 1, Nickname: developer.Hex(), RegisterTime: uint64(11111112111)})
+	}
 	geneAgents = append(geneAgents, candidates...)
-
+	// Assemble and return the genesis with the precompiles and faucet pre-funded
 	return &Genesis{
 		Config:    &config,
 		ExtraData: agentName,
 		GasLimit:  250000000,
 		Alloc: map[common.Address]GenesisAccount{
-			developer: {Balance: new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(9))},
+			developers[0]: {Balance: new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(9))},
+			developers[1]: {Balance: new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(9))},
+			developers[2]: {Balance: new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(9))},
 		},
 		Agents:    geneAgents,
 		Timestamp: 1492009146,

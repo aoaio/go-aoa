@@ -1,21 +1,40 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package types
 
 import (
 	"bytes"
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/rlp"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/rlp"
 	"io"
 	"math/big"
 	"sort"
 )
 
+//Asset is the struct to record an account's asset balance.
 type Asset struct {
 	ID      common.Address
 	Balance *big.Int
 }
 
+/////////////////Assets
+
 type Assets struct {
-	assetList []Asset
+	assetList []Asset //maintain it as ascending alphabetical order
 }
 
 func NewAssets() *Assets {
@@ -24,10 +43,13 @@ func NewAssets() *Assets {
 	return as
 }
 
+// EncodeRLP implements rlp.Encoder.
 func (as *Assets) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, as.assetList)
 }
 
+// DecodeRLP implements rlp.Decoder, and loads the consensus fields of a receipt
+// from an RLP stream.
 func (as *Assets) DecodeRLP(s *rlp.Stream) error {
 	var al []Asset
 	if err := s.Decode(&al); err != nil {
@@ -37,6 +59,7 @@ func (as *Assets) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
+//AddAsset在列表中增加资产，若相应的资产已存在，则直接增加资产余额。
 func (as *Assets) AddAsset(a Asset) {
 	i, isContain := as.indexOf(a.ID)
 	if isContain {
@@ -48,6 +71,7 @@ func (as *Assets) AddAsset(a Asset) {
 	}
 }
 
+//SubAsset根据指定的Asset对象，扣减想对应Asset的值。返回值指示是否成功（失败时对应资产余额不变）
 func (as *Assets) SubAsset(a Asset) bool {
 	i, isContain := as.indexOf(a.ID)
 	if isContain {
@@ -55,8 +79,8 @@ func (as *Assets) SubAsset(a Asset) bool {
 		if dest.Balance.Cmp(a.Balance) >= 0 {
 			dest.Balance = dest.Balance.Sub(dest.Balance, a.Balance)
 			if dest.Balance.Cmp(big.NewInt(0)) == 0 {
-
-				if i < len(as.assetList) - 1 {
+				//if balance is 0, then remove it
+				if i < len(as.assetList)-1 {
 					as.assetList = append(as.assetList[:i], as.assetList[i+1:]...)
 				} else {
 					as.assetList = as.assetList[:i]
@@ -68,6 +92,8 @@ func (as *Assets) SubAsset(a Asset) bool {
 	return false
 }
 
+//indexOf returns the index where the asset should be, and also a bool value showing that is the asset already in this Assets.
+//It will use binary search.
 func (as *Assets) indexOf(id common.Address) (int, bool) {
 	n := len(as.assetList)
 	if n == 0 {

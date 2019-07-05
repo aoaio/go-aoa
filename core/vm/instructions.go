@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package vm
 
 import (
@@ -5,11 +21,11 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/common/math"
-	"github.com/Aurorachain/go-Aurora/core/types"
-	"github.com/Aurorachain/go-Aurora/crypto"
-	"github.com/Aurorachain/go-Aurora/params"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/common/math"
+	"github.com/Aurorachain/go-aoa/core/types"
+	"github.com/Aurorachain/go-aoa/crypto"
+	"github.com/Aurorachain/go-aoa/params"
 )
 
 var (
@@ -297,10 +313,13 @@ func opMulmod(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *S
 	return nil, nil
 }
 
+// opSHL implements Shift Left
+// The SHL instruction (shift left) pops 2 values from the stack, first arg1 and then arg2,
+// and pushes on the stack arg2 shifted to the left by arg1 number of bits.
 func opSHL(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
-
+	// Note, second operand is left in the stack; accumulate result into it, and no need to push it afterwards
 	shift, value := math.U256(stack.pop()), math.U256(stack.peek())
-	defer evm.interpreter.intPool.put(shift)
+	defer evm.interpreter.intPool.put(shift) // First operand back into the pool
 
 	if shift.Cmp(common.Big256) >= 0 {
 		value.SetUint64(0)
@@ -312,10 +331,13 @@ func opSHL(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stac
 	return nil, nil
 }
 
+// opSHR implements Logical Shift Right
+// The SHR instruction (logical shift right) pops 2 values from the stack, first arg1 and then arg2,
+// and pushes on the stack arg2 shifted to the right by arg1 number of bits with zero fill.
 func opSHR(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
-
+	// Note, second operand is left in the stack; accumulate result into it, and no need to push it afterwards
 	shift, value := math.U256(stack.pop()), math.U256(stack.peek())
-	defer evm.interpreter.intPool.put(shift)
+	defer evm.interpreter.intPool.put(shift) // First operand back into the pool
 
 	if shift.Cmp(common.Big256) >= 0 {
 		value.SetUint64(0)
@@ -327,10 +349,13 @@ func opSHR(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stac
 	return nil, nil
 }
 
+// opSAR implements Arithmetic Shift Right
+// The SAR instruction (arithmetic shift right) pops 2 values from the stack, first arg1 and then arg2,
+// and pushes on the stack arg2 shifted to the right by arg1 number of bits with sign extension.
 func opSAR(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
-
+	// Note, S256 returns (potentially) a new bigint, so we're popping, not peeking this one
 	shift, value := math.U256(stack.pop()), math.S256(stack.pop())
-	defer evm.interpreter.intPool.put(shift)
+	defer evm.interpreter.intPool.put(shift) // First operand back into the pool
 
 	if shift.Cmp(common.Big256) >= 0 {
 		if value.Sign() > 0 {
@@ -536,7 +561,7 @@ func opMload(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *St
 }
 
 func opMstore(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
-
+	// pop value of the stack
 	mStart, val := stack.pop(), stack.pop()
 	memory.Set(mStart.Uint64(), 32, math.PaddedBigBytes(val, 32))
 
@@ -621,10 +646,16 @@ func opCreate(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *S
 		input        = memory.Get(offset.Int64(), size.Int64())
 		gas          = contract.Gas
 	)
+	//if evm.ChainConfig().IsEIP150(evm.BlockNumber) {
+	//	gas -= gas / 64
+	//}
 
 	contract.UseGas(gas)
 	res, addr, returnGas, suberr := evm.Create(contract, input, gas, nil, value, "")
-
+	// Push item on the stack based on the returned error. If the ruleset is
+	// homestead we must check for CodeStoreOutOfGasError (homestead only
+	// rule) and treat as an error, if the ruleset is frontier we must
+	// ignore this error and pretend the operation was successful.
 	if suberr == ErrCodeStoreOutOfGas {
 		stack.push(evm.interpreter.intPool.getZero())
 	} else if suberr != nil && suberr != ErrCodeStoreOutOfGas {
@@ -642,14 +673,14 @@ func opCreate(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *S
 }
 
 func opCall(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
-
+	// Pop gas. The actual gas in in evm.callGasTemp.
 	evm.interpreter.intPool.put(stack.pop())
 	gas := evm.callGasTemp
-
+	// Pop other call parameters.
 	addr, value, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
 	toAddr := common.BigToAddress(addr)
 	value = math.U256(value)
-
+	// Get the arguments from the memory.
 	args := memory.Get(inOffset.Int64(), inSize.Int64())
 
 	if value.Sign() != 0 {
@@ -660,8 +691,8 @@ func opCall(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Sta
 		stack.push(evm.interpreter.intPool.getZero())
 	} else {
 		stack.push(evm.interpreter.intPool.get().SetUint64(1))
-
-		evm.watchInnerTx(contract.Address(),toAddr,nil,value)
+		//try watch inner transaction
+		evm.watchInnerTx(contract.Address(), toAddr, nil, value)
 	}
 	if err == nil || err == errExecutionReverted {
 		memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
@@ -673,14 +704,14 @@ func opCall(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Sta
 }
 
 func opCallCode(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
-
+	// Pop gas. The actual gas is in evm.callGasTemp.
 	evm.interpreter.intPool.put(stack.pop())
 	gas := evm.callGasTemp
-
+	// Pop other call parameters.
 	addr, value, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
 	toAddr := common.BigToAddress(addr)
 	value = math.U256(value)
-
+	// Get arguments from the memory.
 	args := memory.Get(inOffset.Int64(), inSize.Int64())
 
 	if value.Sign() != 0 {
@@ -702,13 +733,13 @@ func opCallCode(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack 
 }
 
 func opDelegateCall(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
-
+	// Pop gas. The actual gas is in evm.callGasTemp.
 	evm.interpreter.intPool.put(stack.pop())
 	gas := evm.callGasTemp
-
+	// Pop other call parameters.
 	addr, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
 	toAddr := common.BigToAddress(addr)
-
+	// Get arguments from the memory.
 	args := memory.Get(inOffset.Int64(), inSize.Int64())
 
 	ret, returnGas, err := evm.DelegateCall(contract, toAddr, args, gas)
@@ -727,13 +758,13 @@ func opDelegateCall(pc *uint64, evm *EVM, contract *Contract, memory *Memory, st
 }
 
 func opStaticCall(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
-
+	// Pop gas. The actual gas is in evm.callGasTemp.
 	evm.interpreter.intPool.put(stack.pop())
 	gas := evm.callGasTemp
-
+	// Pop other call parameters.
 	addr, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
 	toAddr := common.BigToAddress(addr)
-
+	// Get arguments from the memory.
 	args := memory.Get(inOffset.Int64(), inSize.Int64())
 
 	ret, returnGas, err := evm.StaticCall(contract, toAddr, args, gas)
@@ -779,6 +810,9 @@ func opSuicide(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *
 	return nil, nil
 }
 
+// following functions are used by the instruction jump  table
+
+// make log instruction function
 func makeLog(size int) executionFunc {
 	return func(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
 		topics := make([]common.Hash, size)
@@ -792,7 +826,8 @@ func makeLog(size int) executionFunc {
 			Address: contract.Address(),
 			Topics:  topics,
 			Data:    d,
-
+			// This is a non-consensus field, but assigned here because
+			// core/state doesn't know the current block number.
 			BlockNumber: evm.BlockNumber.Uint64(),
 		})
 
@@ -801,6 +836,7 @@ func makeLog(size int) executionFunc {
 	}
 }
 
+// make push instruction function
 func makePush(size uint64, pushByteSize int) executionFunc {
 	return func(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
 		codeLen := len(contract.Code)
@@ -823,6 +859,7 @@ func makePush(size uint64, pushByteSize int) executionFunc {
 	}
 }
 
+// make push instruction function
 func makeDup(size int64) executionFunc {
 	return func(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
 		stack.dup(evm.interpreter.intPool, int(size))
@@ -830,8 +867,9 @@ func makeDup(size int64) executionFunc {
 	}
 }
 
+// make swap instruction function
 func makeSwap(size int64) executionFunc {
-
+	// switch n + 1 otherwise n would be swapped with n
 	size += 1
 	return func(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
 		stack.swap(int(size))
@@ -853,15 +891,15 @@ func opTransferAsset(pc *uint64, evm *EVM, contract *Contract, memory *Memory, s
 
 	if evm.Context.CanTransfer(evm.StateDB, contract.Address(), &asset, value) {
 		evm.Transfer(evm.StateDB, contract.Address(), toaddr, &asset, value)
-
-		evm.watchInnerTx(contract.Address(),toaddr,&asset,value)
+		// watch inner transaction
+		evm.watchInnerTx(contract.Address(), toaddr, &asset, value)
 
 		stack.push(evm.interpreter.intPool.get().SetUint64(1))
 	} else {
 		stack.push(evm.interpreter.intPool.getZero())
 		return nil, ErrInsufficientBalance
 	}
-	evm.interpreter.intPool.put(value,aid,to)
+	evm.interpreter.intPool.put(value, aid, to)
 	return nil, nil
 }
 
@@ -885,4 +923,55 @@ func opAssetValue(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stac
 
 func isAOA(contract *Contract) bool {
 	return nil == contract.Asset()
+}
+
+func opIsDelegate(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
+	addr := stack.pop()
+	if _, ok := (*evm.DelegateList)[common.BigToAddress(addr)]; ok {
+		stack.push(evm.interpreter.intPool.get().SetUint64(1))
+	} else {
+		stack.push(evm.interpreter.intPool.get().SetUint64(0))
+	}
+	return nil, nil
+}
+
+func opGetCandidateVoteInfo(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
+	addr := stack.pop()
+	if candidate, ok := (*evm.DelegateList)[common.BigToAddress(addr)]; ok {
+		stack.push(evm.interpreter.intPool.get().SetUint64(candidate.Vote))
+	} else {
+		stack.push(evm.interpreter.intPool.get().SetUint64(0))
+	}
+	return nil, nil
+}
+
+func opGetCandidateVoteInfoFors(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
+	addrs := []*big.Int{stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()}
+	var total uint64
+	for i := 0; i < len(addrs); i++ {
+		if candidate, ok := (*evm.DelegateList)[common.BigToAddress(addrs[i])]; ok {
+			total += candidate.Vote
+		}
+	}
+	if total > 0 {
+		stack.push(evm.interpreter.intPool.get().SetUint64(total))
+	} else {
+		stack.push(evm.interpreter.intPool.get().SetUint64(0))
+	}
+	return nil, nil
+}
+
+func opGetCandidateTotalVote(pc *uint64, evm *EVM, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
+	stack.pop()
+	addr := contract.CallerAddress
+	if _, ok := (*evm.DelegateList)[addr]; ok {
+		var total uint64
+		for _, v := range *evm.DelegateList {
+			total += v.Vote
+		}
+		stack.push(evm.interpreter.intPool.get().SetUint64(total))
+	} else {
+		stack.push(evm.interpreter.intPool.get().SetUint64(0))
+	}
+	return nil, nil
 }

@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package state
 
 import (
@@ -14,16 +30,19 @@ import (
 
 	check "gopkg.in/check.v1"
 
-	"github.com/Aurorachain/go-Aurora/aoadb"
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/core/types"
+	"github.com/Aurorachain/go-aoa/aoadb"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/core/types"
 )
 
+// Tests that updating a state trie does not leak any database writes prior to
+// actually committing the state.
 func TestUpdateLeaks(t *testing.T) {
-
+	// Create an empty state database
 	db, _ := aoadb.NewMemDatabase()
 	state, _ := New(common.Hash{}, NewDatabase(db))
 
+	// Update it with some accounts
 	for i := byte(0); i < 255; i++ {
 		addr := common.BytesToAddress([]byte{i})
 		state.AddBalance(addr, big.NewInt(int64(11*i)))
@@ -36,15 +55,17 @@ func TestUpdateLeaks(t *testing.T) {
 		}
 		state.IntermediateRoot(false)
 	}
-
+	// Ensure that no data was leaked into the database
 	for _, key := range db.Keys() {
 		value, _ := db.Get(key)
 		t.Errorf("State leaked into database: %x -> %x", key, value)
 	}
 }
 
+// Tests that no intermediate state of an object is stored into the database,
+// only the one right before the commit.
 func TestIntermediateLeaks(t *testing.T) {
-
+	// Create two state databases, one transitioning to the final state, the other final from the beginning
 	transDb, _ := aoadb.NewMemDatabase()
 	finalDb, _ := aoadb.NewMemDatabase()
 	transState, _ := New(common.Hash{}, NewDatabase(transDb))
@@ -62,17 +83,20 @@ func TestIntermediateLeaks(t *testing.T) {
 		}
 	}
 
+	// Modify the transient state.
 	for i := byte(0); i < 255; i++ {
 		modify(transState, common.Address{byte(i)}, i, 0)
 	}
-
+	// Write modifications to trie.
 	transState.IntermediateRoot(false)
 
+	// Overwrite all the data with new values in the transient database.
 	for i := byte(0); i < 255; i++ {
 		modify(transState, common.Address{byte(i)}, i, 99)
 		modify(finalState, common.Address{byte(i)}, i, 99)
 	}
 
+	// Commit and cross check the databases.
 	if _, err := transState.CommitTo(transDb, false); err != nil {
 		t.Fatalf("failed to commit transition state: %v", err)
 	}
@@ -98,28 +122,34 @@ func TestStateDB_AddBalance(t *testing.T) {
 	stateDb, _ := New(common.Hash{}, NewDatabase(mem))
 	address1 := common.Address{1}
 	root1 := stateDb.IntermediateRoot(false)
-	fmt.Printf("empty stateDbRoot:%s\n",root1.Hex())
+	fmt.Printf("empty stateDbRoot:%s\n", root1.Hex())
 	stateDb.GetOrNewStateObject(address1)
 	stateDb.Finalise(false)
 	root2 := stateDb.IntermediateRoot(false)
 	balance1 := stateDb.GetBalance(address1)
-	fmt.Printf("create stateDbRoot:%s  balance:%v\n",root2.Hex(),balance1.Int64())
+	fmt.Printf("create stateDbRoot:%s  balance:%v\n", root2.Hex(), balance1.Int64())
 
-	stateDb.AddBalance(address1,big.NewInt(1))
+	stateDb.AddBalance(address1, big.NewInt(1))
 	root3 := stateDb.IntermediateRoot(false)
 	balance := stateDb.GetBalance(address1)
-	fmt.Printf("add balance stateDbRoot:%s balance:%v \n",root3.Hex(),balance.Int64())
+	fmt.Printf("add balance stateDbRoot:%s balance:%v \n", root3.Hex(), balance.Int64())
 	object := stateDb.getStateObject(address1)
 	stateDb.deleteStateObject(object)
 	balance2 := stateDb.GetBalance(address1)
-	fmt.Printf("delete balance :%v\n",balance2)
+	fmt.Printf("delete balance :%v\n", balance2)
 	object2 := stateDb.getStateObject(address1)
 	fmt.Println(object2)
+	//statedb2,_ := New(root2,NewDatabase(mem))
+	//balance2 := statedb2.GetBalance(address1)
+	//fmt.Printf("revert to root2 stateDbRoot:%s balance:%v \n",statedb2.IntermediateRoot(false).Hex(),balance2.Int64())
 
 }
 
+// TestCopy tests that copying a statedb object indeed makes the original and
+// the copy independent of each other. This test is a regression test against
+// https://github.com/Aurorachain/go-aoa/pull/15549.
 func TestCopy(t *testing.T) {
-
+	// Create a random state test to copy and modify "independently"
 	mem, _ := aoadb.NewMemDatabase()
 	orig, _ := New(common.Hash{}, NewDatabase(mem))
 
@@ -130,6 +160,7 @@ func TestCopy(t *testing.T) {
 	}
 	orig.Finalise(false)
 
+	// Copy the state, modify both in-memory
 	copy := orig.Copy()
 
 	for i := byte(0); i < 255; i++ {
@@ -142,7 +173,7 @@ func TestCopy(t *testing.T) {
 		orig.updateStateObject(origObj)
 		copy.updateStateObject(copyObj)
 	}
-
+	// Finalise the changes on both concurrently
 	done := make(chan struct{})
 	go func() {
 		orig.Finalise(true)
@@ -151,6 +182,7 @@ func TestCopy(t *testing.T) {
 	copy.Finalise(true)
 	<-done
 
+	// Verify that the two states have been updated independently
 	for i := byte(0); i < 255; i++ {
 		origObj := orig.GetOrNewStateObject(common.BytesToAddress([]byte{i}))
 		copyObj := copy.GetOrNewStateObject(common.BytesToAddress([]byte{i}))
@@ -175,11 +207,22 @@ func TestSnapshotRandom(t *testing.T) {
 	}
 }
 
+// A snapshotTest checks that reverting StateDB snapshots properly undoes all changes
+// captured by the snapshot. Instances of this test with pseudorandom content are created
+// by Generate.
+//
+// The test works as follows:
+//
+// A new state is created and all actions are applied to it. Several snapshots are taken
+// in between actions. The test then reverts each snapshot. For each snapshot the actions
+// leading up to it are replayed on a fresh, empty state. The behaviour of all public
+// accessor methods on the reverted state must match the return value of the equivalent
+// methods on the replayed state.
 type snapshotTest struct {
-	addrs     []common.Address
-	actions   []testAction
-	snapshots []int
-	err       error
+	addrs     []common.Address // all account addresses
+	actions   []testAction     // modifications to the state
+	snapshots []int            // actions indexes at which snapshot is taken
+	err       error            // failure details are reported through this field
 }
 
 type testAction struct {
@@ -189,6 +232,7 @@ type testAction struct {
 	noAddr bool
 }
 
+// newTestAction creates a random action that changes state.
 func newTestAction(addr common.Address, r *rand.Rand) testAction {
 	actions := []testAction{
 		{
@@ -275,8 +319,10 @@ func newTestAction(addr common.Address, r *rand.Rand) testAction {
 	return action
 }
 
+// Generate returns a new snapshot test of the given size. All randomness is
+// derived from r.
 func (*snapshotTest) Generate(r *rand.Rand, size int) reflect.Value {
-
+	// Generate random actions.
 	addrs := make([]common.Address, 50)
 	for i := range addrs {
 		addrs[i][0] = byte(i)
@@ -286,7 +332,7 @@ func (*snapshotTest) Generate(r *rand.Rand, size int) reflect.Value {
 		addr := addrs[r.Intn(len(addrs))]
 		actions[i] = newTestAction(addr, r)
 	}
-
+	// Generate snapshot indexes.
 	nsnapshots := int(math.Sqrt(float64(size)))
 	if size > 0 && nsnapshots == 0 {
 		nsnapshots = 1
@@ -294,7 +340,7 @@ func (*snapshotTest) Generate(r *rand.Rand, size int) reflect.Value {
 	snapshots := make([]int, nsnapshots)
 	snaplen := len(actions) / nsnapshots
 	for i := range snapshots {
-
+		// Try to place the snapshots some number of actions apart from each other.
 		snapshots[i] = (i * snaplen) + r.Intn(snaplen)
 	}
 	return reflect.ValueOf(&snapshotTest{addrs, actions, snapshots, nil})
@@ -314,7 +360,7 @@ func (test *snapshotTest) String() string {
 }
 
 func (test *snapshotTest) run() bool {
-
+	// Run all actions and create snapshots.
 	var (
 		db, _        = aoadb.NewMemDatabase()
 		state, _     = New(common.Hash{}, NewDatabase(db))
@@ -329,6 +375,8 @@ func (test *snapshotTest) run() bool {
 		action.fn(action, state)
 	}
 
+	// Revert all snapshots in reverse order. Each revert must yield a state
+	// that is equivalent to fresh state with all actions up the snapshot applied.
 	for sindex--; sindex >= 0; sindex-- {
 		checkstate, _ := New(common.Hash{}, NewDatabase(db))
 		for _, action := range test.actions[:test.snapshots[sindex]] {
@@ -343,6 +391,7 @@ func (test *snapshotTest) run() bool {
 	return true
 }
 
+// checkEqual checks that methods of state and checkstate return the same values.
 func (test *snapshotTest) checkEqual(state, checkstate *StateDB) error {
 	for _, addr := range test.addrs {
 		var err error
@@ -353,7 +402,7 @@ func (test *snapshotTest) checkEqual(state, checkstate *StateDB) error {
 			}
 			return true
 		}
-
+		// Check basic accessor methods.
 		checkeq("Exist", state.Exist(addr), checkstate.Exist(addr))
 		checkeq("HasSuicided", state.HasSuicided(addr), checkstate.HasSuicided(addr))
 		checkeq("GetBalance", state.GetBalance(addr), checkstate.GetBalance(addr))
@@ -361,7 +410,7 @@ func (test *snapshotTest) checkEqual(state, checkstate *StateDB) error {
 		checkeq("GetCode", state.GetCode(addr), checkstate.GetCode(addr))
 		checkeq("GetCodeHash", state.GetCodeHash(addr), checkstate.GetCodeHash(addr))
 		checkeq("GetCodeSize", state.GetCodeSize(addr), checkstate.GetCodeSize(addr))
-
+		// Check storage.
 		if obj := state.getStateObject(addr); obj != nil {
 			state.ForEachStorage(addr, func(key, val common.Hash) bool {
 				return checkeq("GetState("+key.Hex()+")", val, checkstate.GetState(addr, key))

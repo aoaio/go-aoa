@@ -1,9 +1,25 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package state
 
 import (
 	"sync"
 
-	"github.com/Aurorachain/go-Aurora/common"
+	"github.com/Aurorachain/go-aoa/common"
 )
 
 type account struct {
@@ -20,6 +36,7 @@ type ManagedState struct {
 	accounts map[common.Address]*account
 }
 
+// ManagedState returns a new managed state with the statedb as it's backing layer
 func ManageState(statedb *StateDB) *ManagedState {
 	return &ManagedState{
 		StateDB:  statedb.Copy(),
@@ -27,12 +44,14 @@ func ManageState(statedb *StateDB) *ManagedState {
 	}
 }
 
+// SetState sets the backing layer of the managed state
 func (ms *ManagedState) SetState(statedb *StateDB) {
 	ms.mu.Lock()
 	defer ms.mu.Unlock()
 	ms.StateDB = statedb
 }
 
+// RemoveNonce removed the nonce from the managed state and all future pending nonces
 func (ms *ManagedState) RemoveNonce(addr common.Address, n uint64) {
 	if ms.hasAccount(addr) {
 		ms.mu.Lock()
@@ -47,6 +66,7 @@ func (ms *ManagedState) RemoveNonce(addr common.Address, n uint64) {
 	}
 }
 
+// NewNonce returns the new canonical nonce for the managed account
 func (ms *ManagedState) NewNonce(addr common.Address) uint64 {
 	ms.mu.Lock()
 	defer ms.mu.Unlock()
@@ -62,6 +82,9 @@ func (ms *ManagedState) NewNonce(addr common.Address) uint64 {
 	return uint64(len(account.nonces)-1) + account.nstart
 }
 
+// GetNonce returns the canonical nonce for the managed or unmanaged account.
+//
+// Because GetNonce mutates the DB, we must take a write lock.
 func (ms *ManagedState) GetNonce(addr common.Address) uint64 {
 	ms.mu.Lock()
 	defer ms.mu.Unlock()
@@ -74,6 +97,7 @@ func (ms *ManagedState) GetNonce(addr common.Address) uint64 {
 	}
 }
 
+// SetNonce sets the new canonical nonce for the managed state
 func (ms *ManagedState) SetNonce(addr common.Address, nonce uint64) {
 	ms.mu.Lock()
 	defer ms.mu.Unlock()
@@ -84,6 +108,7 @@ func (ms *ManagedState) SetNonce(addr common.Address, nonce uint64) {
 	ms.accounts[addr] = newAccount(so)
 }
 
+// HasAccount returns whether the given address is managed or not
 func (ms *ManagedState) HasAccount(addr common.Address) bool {
 	ms.mu.RLock()
 	defer ms.mu.RUnlock()
@@ -95,12 +120,14 @@ func (ms *ManagedState) hasAccount(addr common.Address) bool {
 	return ok
 }
 
+// populate the managed state
 func (ms *ManagedState) getAccount(addr common.Address) *account {
 	if account, ok := ms.accounts[addr]; !ok {
 		so := ms.GetOrNewStateObject(addr)
 		ms.accounts[addr] = newAccount(so)
 	} else {
-
+		// Always make sure the state account nonce isn't actually higher
+		// than the tracked one.
 		so := ms.StateDB.getStateObject(addr)
 		if so != nil && uint64(len(account.nonces))+account.nstart < so.Nonce() {
 			ms.accounts[addr] = newAccount(so)

@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package discv5
 
 import (
@@ -19,21 +35,21 @@ var nodeDBKeyTests = []struct {
 	{
 		id:    NodeID{},
 		field: "version",
-		key:   []byte{0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e}, 
+		key:   []byte{0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e}, // field
 	},
 	{
 		id:    MustHexID("0x1dd9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439"),
 		field: ":discover",
-		key: []byte{0x6e, 0x3a, 
-			0x1d, 0xd9, 0xd6, 0x5c, 0x45, 0x52, 0xb5, 0xeb, 
-			0x43, 0xd5, 0xad, 0x55, 0xa2, 0xee, 0x3f, 0x56, 
-			0xc6, 0xcb, 0xc1, 0xc6, 0x4a, 0x5c, 0x8d, 0x65, 
-			0x9f, 0x51, 0xfc, 0xd5, 0x1b, 0xac, 0xe2, 0x43, 
-			0x51, 0x23, 0x2b, 0x8d, 0x78, 0x21, 0x61, 0x7d, 
-			0x2b, 0x29, 0xb5, 0x4b, 0x81, 0xcd, 0xef, 0xb9, 
-			0xb3, 0xe9, 0xc3, 0x7d, 0x7f, 0xd5, 0xf6, 0x32, 
-			0x70, 0xbc, 0xc9, 0xe1, 0xa6, 0xf6, 0xa4, 0x39, 
-			0x3a, 0x64, 0x69, 0x73, 0x63, 0x6f, 0x76, 0x65, 0x72, 
+		key: []byte{0x6e, 0x3a, // prefix
+			0x1d, 0xd9, 0xd6, 0x5c, 0x45, 0x52, 0xb5, 0xeb, // node id
+			0x43, 0xd5, 0xad, 0x55, 0xa2, 0xee, 0x3f, 0x56, //
+			0xc6, 0xcb, 0xc1, 0xc6, 0x4a, 0x5c, 0x8d, 0x65, //
+			0x9f, 0x51, 0xfc, 0xd5, 0x1b, 0xac, 0xe2, 0x43, //
+			0x51, 0x23, 0x2b, 0x8d, 0x78, 0x21, 0x61, 0x7d, //
+			0x2b, 0x29, 0xb5, 0x4b, 0x81, 0xcd, 0xef, 0xb9, //
+			0xb3, 0xe9, 0xc3, 0x7d, 0x7f, 0xd5, 0xf6, 0x32, //
+			0x70, 0xbc, 0xc9, 0xe1, 0xa6, 0xf6, 0xa4, 0x39, //
+			0x3a, 0x64, 0x69, 0x73, 0x63, 0x6f, 0x76, 0x65, 0x72, // field
 		},
 	},
 }
@@ -68,11 +84,11 @@ func TestNodeDBInt64(t *testing.T) {
 
 	tests := nodeDBInt64Tests
 	for i := 0; i < len(tests); i++ {
-
+		// Insert the next value
 		if err := db.storeInt64(tests[i].key, tests[i].value); err != nil {
 			t.Errorf("test %d: failed to store value: %v", i, err)
 		}
-
+		// Check all existing and non existing values
 		for j := 0; j < len(tests); j++ {
 			num := db.fetchInt64(tests[j].key)
 			switch {
@@ -98,6 +114,7 @@ func TestNodeDBFetchStore(t *testing.T) {
 	db, _ := newNodeDB("", Version, NodeID{})
 	defer db.close()
 
+	// Check fetch/store operations on a node ping object
 	if stored := db.lastPing(node.ID); stored.Unix() != 0 {
 		t.Errorf("ping: non-existing object: %v", stored)
 	}
@@ -107,7 +124,7 @@ func TestNodeDBFetchStore(t *testing.T) {
 	if stored := db.lastPing(node.ID); stored.Unix() != inst.Unix() {
 		t.Errorf("ping: value mismatch: have %v, want %v", stored, inst)
 	}
-
+	// Check fetch/store operations on a node pong object
 	if stored := db.lastPong(node.ID); stored.Unix() != 0 {
 		t.Errorf("pong: non-existing object: %v", stored)
 	}
@@ -117,7 +134,7 @@ func TestNodeDBFetchStore(t *testing.T) {
 	if stored := db.lastPong(node.ID); stored.Unix() != inst.Unix() {
 		t.Errorf("pong: value mismatch: have %v, want %v", stored, inst)
 	}
-
+	// Check fetch/store operations on a node findnode-failure object
 	if stored := db.findFails(node.ID); stored != 0 {
 		t.Errorf("find-node fails: non-existing object: %v", stored)
 	}
@@ -127,7 +144,7 @@ func TestNodeDBFetchStore(t *testing.T) {
 	if stored := db.findFails(node.ID); stored != num {
 		t.Errorf("find-node fails: value mismatch: have %v, want %v", stored, num)
 	}
-
+	// Check fetch/store operations on an actual node object
 	if stored := db.node(node.ID); stored != nil {
 		t.Errorf("node: non-existing object: %v", stored)
 	}
@@ -145,7 +162,8 @@ var nodeDBSeedQueryNodes = []struct {
 	node *Node
 	pong time.Time
 }{
-
+	// This one should not be in the result set because its last
+	// pong time is too far in the past.
 	{
 		node: NewNode(
 			MustHexID("0x84d9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439"),
@@ -155,7 +173,8 @@ var nodeDBSeedQueryNodes = []struct {
 		),
 		pong: time.Now().Add(-3 * time.Hour),
 	},
-
+	// This one shouldn't be in in the result set because its
+	// nodeID is the local node's ID.
 	{
 		node: NewNode(
 			MustHexID("0x57d9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439"),
@@ -166,6 +185,7 @@ var nodeDBSeedQueryNodes = []struct {
 		pong: time.Now().Add(-4 * time.Second),
 	},
 
+	// These should be in the result set.
 	{
 		node: NewNode(
 			MustHexID("0x22d9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439"),
@@ -199,6 +219,7 @@ func TestNodeDBSeedQuery(t *testing.T) {
 	db, _ := newNodeDB("", Version, nodeDBSeedQueryNodes[1].node.ID)
 	defer db.close()
 
+	// Insert a batch of nodes for querying
 	for i, seed := range nodeDBSeedQueryNodes {
 		if err := db.updateNode(seed.node); err != nil {
 			t.Fatalf("node %d: failed to insert: %v", i, err)
@@ -208,6 +229,7 @@ func TestNodeDBSeedQuery(t *testing.T) {
 		}
 	}
 
+	// Retrieve the entire batch and check for duplicates
 	seeds := db.querySeeds(len(nodeDBSeedQueryNodes)*2, time.Hour)
 	have := make(map[NodeID]struct{})
 	for _, seed := range seeds {
@@ -244,6 +266,7 @@ func TestNodeDBPersistency(t *testing.T) {
 		testInt = int64(314)
 	)
 
+	// Create a persistent database and store some values
 	db, err := newNodeDB(filepath.Join(root, "database"), Version, NodeID{})
 	if err != nil {
 		t.Fatalf("failed to create persistent database: %v", err)
@@ -253,6 +276,7 @@ func TestNodeDBPersistency(t *testing.T) {
 	}
 	db.close()
 
+	// Reopen the database and check the value
 	db, err = newNodeDB(filepath.Join(root, "database"), Version, NodeID{})
 	if err != nil {
 		t.Fatalf("failed to open persistent database: %v", err)
@@ -262,6 +286,7 @@ func TestNodeDBPersistency(t *testing.T) {
 	}
 	db.close()
 
+	// Change the database version and check flush
 	db, err = newNodeDB(filepath.Join(root, "database"), Version+1, NodeID{})
 	if err != nil {
 		t.Fatalf("failed to open persistent database: %v", err)
@@ -302,6 +327,7 @@ func TestNodeDBExpiration(t *testing.T) {
 	db, _ := newNodeDB("", Version, NodeID{})
 	defer db.close()
 
+	// Add all the test nodes and set their last pong time
 	for i, seed := range nodeDBExpirationNodes {
 		if err := db.updateNode(seed.node); err != nil {
 			t.Fatalf("node %d: failed to insert: %v", i, err)
@@ -310,7 +336,7 @@ func TestNodeDBExpiration(t *testing.T) {
 			t.Fatalf("node %d: failed to update pong: %v", i, err)
 		}
 	}
-
+	// Expire some of them, and check the rest
 	if err := db.expireNodes(); err != nil {
 		t.Fatalf("failed to expire nodes: %v", err)
 	}
@@ -323,7 +349,7 @@ func TestNodeDBExpiration(t *testing.T) {
 }
 
 func TestNodeDBSelfExpiration(t *testing.T) {
-
+	// Find a node in the tests that shouldn't expire, and assign it as self
 	var self NodeID
 	for _, node := range nodeDBExpirationNodes {
 		if !node.exp {
@@ -334,6 +360,7 @@ func TestNodeDBSelfExpiration(t *testing.T) {
 	db, _ := newNodeDB("", Version, self)
 	defer db.close()
 
+	// Add all the test nodes and set their last pong time
 	for i, seed := range nodeDBExpirationNodes {
 		if err := db.updateNode(seed.node); err != nil {
 			t.Fatalf("node %d: failed to insert: %v", i, err)
@@ -342,7 +369,7 @@ func TestNodeDBSelfExpiration(t *testing.T) {
 			t.Fatalf("node %d: failed to update pong: %v", i, err)
 		}
 	}
-
+	// Expire the nodes and make sure self has been evacuated too
 	if err := db.expireNodes(); err != nil {
 		t.Fatalf("failed to expire nodes: %v", err)
 	}

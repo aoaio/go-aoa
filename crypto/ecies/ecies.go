@@ -1,3 +1,32 @@
+// Copyright (c) 2013 Kyle Isom <kyle@tyrfingr.is>
+// Copyright (c) 2012 The Go Authors. All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met:
+//
+//    * Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+//    * Redistributions in binary form must reproduce the above
+// copyright notice, this list of conditions and the following disclaimer
+// in the documentation and/or other materials provided with the
+// distribution.
+//    * Neither the name of Google Inc. nor the names of its
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 package ecies
 
 import (
@@ -21,6 +50,7 @@ var (
 	ErrSharedKeyTooBig            = fmt.Errorf("ecies: shared key params are too big")
 )
 
+// PublicKey is a representation of an elliptic curve public key.
 type PublicKey struct {
 	X *big.Int
 	Y *big.Int
@@ -28,10 +58,12 @@ type PublicKey struct {
 	Params *ECIESParams
 }
 
+// Export an ECIES public key as an ECDSA public key.
 func (pub *PublicKey) ExportECDSA() *ecdsa.PublicKey {
 	return &ecdsa.PublicKey{Curve: pub.Curve, X: pub.X, Y: pub.Y}
 }
 
+// Import an ECDSA public key as an ECIES public key.
 func ImportECDSAPublic(pub *ecdsa.PublicKey) *PublicKey {
 	return &PublicKey{
 		X:      pub.X,
@@ -41,22 +73,27 @@ func ImportECDSAPublic(pub *ecdsa.PublicKey) *PublicKey {
 	}
 }
 
+// PrivateKey is a representation of an elliptic curve private key.
 type PrivateKey struct {
 	PublicKey
 	D *big.Int
 }
 
+// Export an ECIES private key as an ECDSA private key.
 func (prv *PrivateKey) ExportECDSA() *ecdsa.PrivateKey {
 	pub := &prv.PublicKey
 	pubECDSA := pub.ExportECDSA()
 	return &ecdsa.PrivateKey{PublicKey: *pubECDSA, D: prv.D}
 }
 
+// Import an ECDSA private key as an ECIES private key.
 func ImportECDSA(prv *ecdsa.PrivateKey) *PrivateKey {
 	pub := ImportECDSAPublic(&prv.PublicKey)
 	return &PrivateKey{*pub, prv.D}
 }
 
+// Generate an elliptic curve public / private keypair. If params is nil,
+// the recommended default parameters for the key will be chosen.
 func GenerateKey(rand io.Reader, curve elliptic.Curve, params *ECIESParams) (prv *PrivateKey, err error) {
 	pb, x, y, err := elliptic.GenerateKey(curve, rand)
 	if err != nil {
@@ -74,10 +111,13 @@ func GenerateKey(rand io.Reader, curve elliptic.Curve, params *ECIESParams) (prv
 	return
 }
 
+// MaxSharedKeyLength returns the maximum length of the shared key the
+// public key can produce.
 func MaxSharedKeyLength(pub *PublicKey) int {
 	return (pub.Curve.Params().BitSize + 7) / 8
 }
 
+// ECDH key agreement method used to establish secret keys for encryption.
 func (prv *PrivateKey) GenerateShared(pub *PublicKey, skLen, macLen int) (sk []byte, err error) {
 	if prv.PublicKey.Curve != pub.Curve {
 		return nil, ErrInvalidCurve
@@ -123,6 +163,7 @@ func incCounter(ctr []byte) {
 	}
 }
 
+// NIST SP 800-56 Concatenation Key Derivation Function (see section 5.8.1).
 func concatKDF(hash hash.Hash, z, s1 []byte, kdLen int) (k []byte, err error) {
 	if s1 == nil {
 		s1 = make([]byte, 0)
@@ -150,6 +191,8 @@ func concatKDF(hash hash.Hash, z, s1 []byte, kdLen int) (k []byte, err error) {
 	return
 }
 
+// messageTag computes the MAC of a message (called the tag) as per
+// SEC 1, 3.5.
 func messageTag(hash func() hash.Hash, km, msg, shared []byte) []byte {
 	mac := hmac.New(hash, km)
 	mac.Write(msg)
@@ -158,12 +201,15 @@ func messageTag(hash func() hash.Hash, km, msg, shared []byte) []byte {
 	return tag
 }
 
+// Generate an initialisation vector for CTR mode.
 func generateIV(params *ECIESParams, rand io.Reader) (iv []byte, err error) {
 	iv = make([]byte, params.BlockSize)
 	_, err = io.ReadFull(rand, iv)
 	return
 }
 
+// symEncrypt carries out CTR encryption using the block cipher specified in the
+// parameters.
 func symEncrypt(rand io.Reader, params *ECIESParams, key, m []byte) (ct []byte, err error) {
 	c, err := params.Cipher(key)
 	if err != nil {
@@ -182,6 +228,8 @@ func symEncrypt(rand io.Reader, params *ECIESParams, key, m []byte) (ct []byte, 
 	return
 }
 
+// symDecrypt carries out CTR decryption using the block cipher specified in
+// the parameters
 func symDecrypt(rand io.Reader, params *ECIESParams, key, ct []byte) (m []byte, err error) {
 	c, err := params.Cipher(key)
 	if err != nil {
@@ -195,6 +243,11 @@ func symDecrypt(rand io.Reader, params *ECIESParams, key, ct []byte) (m []byte, 
 	return
 }
 
+// Encrypt encrypts a message using ECIES as specified in SEC 1, 5.1.
+//
+// s1 and s2 contain shared information that is not part of the resulting
+// ciphertext. s1 is fed into key derivation, s2 is fed into the MAC. If the
+// shared information parameters aren't being used, they should be nil.
 func Encrypt(rand io.Reader, pub *PublicKey, m, s1, s2 []byte) (ct []byte, err error) {
 	params := pub.Params
 	if params == nil {
@@ -238,6 +291,7 @@ func Encrypt(rand io.Reader, pub *PublicKey, m, s1, s2 []byte) (ct []byte, err e
 	return
 }
 
+// Decrypt decrypts an ECIES ciphertext.
 func (prv *PrivateKey) Decrypt(rand io.Reader, c, s1, s2 []byte) (m []byte, err error) {
 	if len(c) == 0 {
 		return nil, ErrInvalidMessage

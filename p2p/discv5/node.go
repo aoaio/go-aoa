@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package discv5
 
 import (
@@ -14,18 +30,25 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/crypto"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/crypto"
 )
 
+// Node represents a host on the network.
+// The public fields of Node may not be modified.
 type Node struct {
-	IP       net.IP
-	UDP, TCP uint16
-	ID       NodeID
+	IP       net.IP // len 4 for IPv4 or 16 for IPv6
+	UDP, TCP uint16 // port numbers
+	ID       NodeID // the node's public key
 
+	// Network-related fields are contained in nodeNetGuts.
+	// These fields are not supposed to be used off the
+	// Network.loop goroutine.
 	nodeNetGuts
 }
 
+// NewNode creates a new node. It is mostly meant to be used for
+// testing purposes.
 func NewNode(id NodeID, ip net.IP, udpPort, tcpPort uint16) *Node {
 	if ipv4 := ip.To4(); ipv4 != nil {
 		ip = ipv4
@@ -51,6 +74,7 @@ func (n *Node) setAddr(a *net.UDPAddr) {
 	n.UDP = uint16(a.Port)
 }
 
+// compares the given address against the stored values.
 func (n *Node) addrEqual(a *net.UDPAddr) bool {
 	ip := a.IP
 	if ipv4 := a.IP.To4(); ipv4 != nil {
@@ -59,10 +83,12 @@ func (n *Node) addrEqual(a *net.UDPAddr) bool {
 	return n.UDP == uint16(a.Port) && n.IP.Equal(ip)
 }
 
+// Incomplete returns true for nodes with no IP address.
 func (n *Node) Incomplete() bool {
 	return n.IP == nil
 }
 
+// checks whether n is a valid complete node.
 func (n *Node) validateComplete() error {
 	if n.Incomplete() {
 		return errors.New("incomplete node")
@@ -76,10 +102,12 @@ func (n *Node) validateComplete() error {
 	if n.IP.IsMulticast() || n.IP.IsUnspecified() {
 		return errors.New("invalid IP (multicast/unspecified)")
 	}
-	_, err := n.ID.Pubkey()
+	_, err := n.ID.Pubkey() // validate the key (on curve, etc.)
 	return err
 }
 
+// The string representation of a Node is a URL.
+// Please see ParseNode for a description of the format.
 func (n *Node) String() string {
 	u := url.URL{Scheme: "enode"}
 	if n.Incomplete() {
@@ -97,6 +125,29 @@ func (n *Node) String() string {
 
 var incompleteNodeURL = regexp.MustCompile("(?i)^(?:enode://)?([0-9a-f]+)$")
 
+// ParseNode parses a node designator.
+//
+// There are two basic forms of node designators
+//   - incomplete nodes, which only have the public key (node ID)
+//   - complete nodes, which contain the public key and IP/Port information
+//
+// For incomplete nodes, the designator must look like one of these
+//
+//    enode://<hex node id>
+//    <hex node id>
+//
+// For complete nodes, the node ID is encoded in the username portion
+// of the URL, separated from the host by an @ sign. The hostname can
+// only be given as an IP address, DNS domain names are not allowed.
+// The port in the host name section is the TCP listening port. If the
+// TCP and UDP (discovery) ports differ, the UDP port is specified as
+// query parameter "discport".
+//
+// In the following example, the node URL describes
+// a node with IP address 10.3.58.6, TCP listening port 30303
+// and UDP discovery port 30301.
+//
+//    enode://<hex node id>@10.3.58.6:30303?discport=30301
 func ParseNode(rawurl string) (*Node, error) {
 	if m := incompleteNodeURL.FindStringSubmatch(rawurl); m != nil {
 		id, err := HexID(m[1])
@@ -121,14 +172,14 @@ func parseComplete(rawurl string) (*Node, error) {
 	if u.Scheme != "enode" {
 		return nil, errors.New("invalid URL scheme, want \"enode\"")
 	}
-
+	// Parse the Node ID from the user portion.
 	if u.User == nil {
 		return nil, errors.New("does not contain node ID")
 	}
 	if id, err = HexID(u.User.String()); err != nil {
 		return nil, fmt.Errorf("invalid node ID (%v)", err)
 	}
-
+	// Parse the IP address.
 	host, port, err := net.SplitHostPort(u.Host)
 	if err != nil {
 		return nil, fmt.Errorf("invalid host: %v", err)
@@ -136,11 +187,11 @@ func parseComplete(rawurl string) (*Node, error) {
 	if ip = net.ParseIP(host); ip == nil {
 		return nil, errors.New("invalid IP address")
 	}
-
+	// Ensure the IP is 4 bytes long for IPv4 addresses.
 	if ipv4 := ip.To4(); ipv4 != nil {
 		ip = ipv4
 	}
-
+	// Parse the port numbers.
 	if tcpPort, err = strconv.ParseUint(port, 10, 16); err != nil {
 		return nil, errors.New("invalid port")
 	}
@@ -155,6 +206,7 @@ func parseComplete(rawurl string) (*Node, error) {
 	return NewNode(id, ip, uint16(udpPort), uint16(tcpPort)), nil
 }
 
+// MustParseNode parses a node URL. It panics if the URL is not valid.
 func MustParseNode(rawurl string) *Node {
 	n, err := ParseNode(rawurl)
 	if err != nil {
@@ -163,10 +215,12 @@ func MustParseNode(rawurl string) *Node {
 	return n
 }
 
+// MarshalText implements encoding.TextMarshaler.
 func (n *Node) MarshalText() ([]byte, error) {
 	return []byte(n.String()), nil
 }
 
+// UnmarshalText implements encoding.TextUnmarshaler.
 func (n *Node) UnmarshalText(text []byte) error {
 	dec, err := ParseNode(string(text))
 	if err == nil {
@@ -175,22 +229,57 @@ func (n *Node) UnmarshalText(text []byte) error {
 	return err
 }
 
+// type nodeQueue []*Node
+//
+// // pushNew adds n to the end if it is not present.
+// func (nl *nodeList) appendNew(n *Node) {
+// 	for _, entry := range n {
+// 		if entry == n {
+// 			return
+// 		}
+// 	}
+// 	*nq = append(*nq, n)
+// }
+//
+// // popRandom removes a random node. Nodes closer to
+// // to the head of the beginning of the have a slightly higher probability.
+// func (nl *nodeList) popRandom() *Node {
+// 	ix := rand.Intn(len(*nq))
+// 	//TODO: probability as mentioned above.
+// 	nl.removeIndex(ix)
+// }
+//
+// func (nl *nodeList) removeIndex(i int) *Node {
+// 	slice = *nl
+// 	if len(*slice) <= i {
+// 		return nil
+// 	}
+// 	*nl = append(slice[:i], slice[i+1:]...)
+// }
+
 const nodeIDBits = 512
 
+// NodeID is a unique identifier for each node.
+// The node identifier is a marshaled elliptic curve public key.
 type NodeID [nodeIDBits / 8]byte
 
+// NodeID prints as a long hexadecimal number.
 func (n NodeID) String() string {
 	return fmt.Sprintf("%x", n[:])
 }
 
+// The Go syntax representation of a NodeID is a call to HexID.
 func (n NodeID) GoString() string {
 	return fmt.Sprintf("discover.HexID(\"%x\")", n[:])
 }
 
+// TerminalString returns a shortened hex string for terminal logging.
 func (n NodeID) TerminalString() string {
 	return hex.EncodeToString(n[:8])
 }
 
+// HexID converts a hex string to a NodeID.
+// The string may be prefixed with 0x.
 func HexID(in string) (NodeID, error) {
 	var id NodeID
 	b, err := hex.DecodeString(strings.TrimPrefix(in, "0x"))
@@ -203,6 +292,8 @@ func HexID(in string) (NodeID, error) {
 	return id, nil
 }
 
+// MustHexID converts a hex string to a NodeID.
+// It panics if the string is not a valid NodeID.
 func MustHexID(in string) NodeID {
 	id, err := HexID(in)
 	if err != nil {
@@ -211,6 +302,7 @@ func MustHexID(in string) NodeID {
 	return id
 }
 
+// PubkeyID returns a marshaled representation of the given public key.
 func PubkeyID(pub *ecdsa.PublicKey) NodeID {
 	var id NodeID
 	pbytes := elliptic.Marshal(pub.Curve, pub.X, pub.Y)
@@ -221,6 +313,8 @@ func PubkeyID(pub *ecdsa.PublicKey) NodeID {
 	return id
 }
 
+// Pubkey returns the public key represented by the node ID.
+// It returns an error if the ID is not a point on the curve.
 func (id NodeID) Pubkey() (*ecdsa.PublicKey, error) {
 	p := &ecdsa.PublicKey{Curve: crypto.S256(), X: new(big.Int), Y: new(big.Int)}
 	half := len(id) / 2
@@ -240,6 +334,8 @@ func (id NodeID) mustPubkey() ecdsa.PublicKey {
 	return *pk
 }
 
+// recoverNodeID computes the public key used to sign the
+// given hash from the signature.
 func recoverNodeID(hash, sig []byte) (id NodeID, err error) {
 	pubkey, err := crypto.Ecrecover(hash, sig)
 	if err != nil {
@@ -254,6 +350,9 @@ func recoverNodeID(hash, sig []byte) (id NodeID, err error) {
 	return id, nil
 }
 
+// distcmp compares the distances a->target and b->target.
+// Returns -1 if a is closer to target, 1 if b is closer to target
+// and 0 if they are equal.
 func distcmp(target, a, b common.Hash) int {
 	for i := range target {
 		da := a[i] ^ target[i]
@@ -267,6 +366,7 @@ func distcmp(target, a, b common.Hash) int {
 	return 0
 }
 
+// table of leading zero counts for bytes [0..255]
 var lzcount = [256]int{
 	8, 7, 6, 6, 5, 5, 5, 5,
 	4, 4, 4, 4, 4, 4, 4, 4,
@@ -302,6 +402,7 @@ var lzcount = [256]int{
 	0, 0, 0, 0, 0, 0, 0, 0,
 }
 
+// logdist returns the logarithmic distance between a and b, log2(a ^ b).
 func logdist(a, b common.Hash) int {
 	lz := 0
 	for i := range a {
@@ -316,11 +417,12 @@ func logdist(a, b common.Hash) int {
 	return len(a)*8 - lz
 }
 
+// hashAtDistance returns a random hash such that logdist(a, b) == n
 func hashAtDistance(a common.Hash, n int) (b common.Hash) {
 	if n == 0 {
 		return a
 	}
-
+	// flip bit at position n, fill the rest with random bits
 	b = a
 	pos := len(a) - n/8 - 1
 	bit := byte(0x01) << (byte(n%8) - 1)
@@ -328,7 +430,7 @@ func hashAtDistance(a common.Hash, n int) (b common.Hash) {
 		pos++
 		bit = 0x80
 	}
-	b[pos] = a[pos]&^bit | ^a[pos]&bit
+	b[pos] = a[pos]&^bit | ^a[pos]&bit // TODO: randomize end bits
 	for i := pos + 1; i < len(a); i++ {
 		b[i] = byte(rand.Intn(255))
 	}

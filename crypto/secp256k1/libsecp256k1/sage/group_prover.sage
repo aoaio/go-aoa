@@ -42,7 +42,7 @@
 #     as we assume that all constraints in it are complementary with each other.
 #
 # Based on the sage verification scripts used in the Explicit-Formulas Database
-# by Tanja Lange and others, see http:
+# by Tanja Lange and others, see http://hyperelliptic.org/EFD
 
 class fastfrac:
   """Fractions over rings."""
@@ -172,6 +172,7 @@ class constraints:
   def __repr__(self):
     return "%s" % self
 
+
 def conflicts(R, con):
   """Check whether any of the passed non-zero assumptions is implied by the zero assumptions"""
   zero = R.ideal(map(numerator, con.zero))
@@ -191,6 +192,7 @@ def conflicts(R, con):
     return True
   return False
 
+
 def get_nonzero_set(R, assume):
   """Calculate a simple set of nonzero expressions"""
   zero = R.ideal(map(numerator, assume.zero))
@@ -202,6 +204,7 @@ def get_nonzero_set(R, assume):
     for (f,n) in rnz.factor():
       nonzero.add(f)
   return nonzero
+
 
 def prove_nonzero(R, exprs, assume):
   """Check whether an expression is provably nonzero, given assumptions"""
@@ -241,6 +244,7 @@ def prove_nonzero(R, exprs, assume):
   else:
     return (True, None)
 
+
 def prove_zero(R, exprs, assume):
   """Check whether all of the passed expressions are provably zero, given assumptions"""
   r, e = prove_nonzero(R, dict(map(lambda x: (fastfrac(R, x.bot, 1), exprs[x]), exprs)), assume)
@@ -255,6 +259,7 @@ def prove_zero(R, exprs, assume):
   if not expl:
     return (True, None)
   return (False, expl)
+
 
 def describe_extra(R, assume, assumeExtra):
   """Describe what assumptions are added, given existing assumptions"""
@@ -282,6 +287,7 @@ def describe_extra(R, assume, assumeExtra):
           ret.add("%s != 0" % zeroextra.reduce(f))
   return ", ".join(x for x in ret)
 
+
 def check_symbolic(R, assumeLaw, assumeAssert, assumeBranch, require):
   """Check a set of zero and nonzero requirements, given a set of zero and nonzero assumptions"""
   assume = assumeLaw + assumeAssert + assumeBranch
@@ -304,6 +310,7 @@ def check_symbolic(R, assumeLaw, assumeAssert, assumeBranch, require):
     return "OK (assuming %s)" % describe
   else:
     return "OK"
+
 
 def concrete_verify(c):
   for k in c.zero:

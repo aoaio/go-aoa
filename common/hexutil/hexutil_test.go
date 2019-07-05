@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package hexutil
 
 import (
@@ -15,8 +31,8 @@ type marshalTest struct {
 type unmarshalTest struct {
 	input        string
 	want         interface{}
-	wantErr      error 
-	wantErr32bit error 
+	wantErr      error // if set, decoding must fail on any platform
+	wantErr32bit error // if set, decoding must fail on 32bit platforms (used for Uint tests)
 }
 
 var (
@@ -50,14 +66,14 @@ var (
 	}
 
 	decodeBytesTests = []unmarshalTest{
-
+		// invalid
 		{input: ``, wantErr: ErrEmptyString},
 		{input: `0`, wantErr: ErrMissingPrefix},
 		{input: `0x0`, wantErr: ErrOddLength},
 		{input: `0x023`, wantErr: ErrOddLength},
 		{input: `0xxx`, wantErr: ErrSyntax},
 		{input: `0x01zz01`, wantErr: ErrSyntax},
-
+		// valid
 		{input: `0x`, want: []byte{}},
 		{input: `0X`, want: []byte{}},
 		{input: `0x02`, want: []byte{0x02}},
@@ -70,7 +86,7 @@ var (
 	}
 
 	decodeBigTests = []unmarshalTest{
-
+		// invalid
 		{input: `0`, wantErr: ErrMissingPrefix},
 		{input: `0x`, wantErr: ErrEmptyNumber},
 		{input: `0x01`, wantErr: ErrLeadingZero},
@@ -80,7 +96,7 @@ var (
 			input:   `0x10000000000000000000000000000000000000000000000000000000000000000`,
 			wantErr: ErrBig256Range,
 		},
-
+		// valid
 		{input: `0x0`, want: big.NewInt(0)},
 		{input: `0x2`, want: big.NewInt(0x2)},
 		{input: `0x2F2`, want: big.NewInt(0x2f2)},
@@ -103,14 +119,14 @@ var (
 	}
 
 	decodeUint64Tests = []unmarshalTest{
-
+		// invalid
 		{input: `0`, wantErr: ErrMissingPrefix},
 		{input: `0x`, wantErr: ErrEmptyNumber},
 		{input: `0x01`, wantErr: ErrLeadingZero},
 		{input: `0xfffffffffffffffff`, wantErr: ErrUint64Range},
 		{input: `0xx`, wantErr: ErrSyntax},
 		{input: `0x1zz01`, wantErr: ErrSyntax},
-
+		// valid
 		{input: `0x0`, want: uint64(0)},
 		{input: `0x2`, want: uint64(0x2)},
 		{input: `0x2F2`, want: uint64(0x2f2)},
@@ -187,13 +203,14 @@ func TestDecodeUint64(t *testing.T) {
 	}
 }
 
+// test decode and encode string
 func TestMustDecode(t *testing.T) {
 	data, err := Decode("0x616f612d6e6f64653636")
-
+	// data, err := Decode("0xe4b883e5bda9e7a59ee4bb99e9b1bc")
 	if err != nil {
 		t.Error(err)
 	}
-
+	// encodeString := Encode([]byte("牛逼范"))
 	encodeString := Encode([]byte("AOA Genesis"))
 
 	data2,err := Decode(encodeString)

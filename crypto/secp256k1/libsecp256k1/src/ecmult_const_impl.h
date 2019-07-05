@@ -1,7 +1,7 @@
 /**********************************************************************
  * Copyright (c) 2015 Pieter Wuille, Andrew Poelstra                  *
  * Distributed under the MIT software license, see the accompanying   *
- * file COPYING or http:
+ * file COPYING or http://www.opensource.org/licenses/mit-license.php.*
  **********************************************************************/
 
 #ifndef _SECP256K1_ECMULT_CONST_IMPL_
@@ -40,6 +40,7 @@
     secp256k1_fe_negate(&neg_y, &(r)->y, 1); \
     secp256k1_fe_cmov(&(r)->y, &neg_y, (n) != abs_n); \
 } while(0)
+
 
 /** Convert a number to WNAF notation. The number becomes represented by sum(2^{wi} * wnaf[i], i=0..return_val)
  *  with the following guarantees:
@@ -116,6 +117,7 @@ static int secp256k1_wnaf_const(int *wnaf, secp256k1_scalar s, int w) {
     VERIFY_CHECK(word == WNAF_SIZE(w));
     return skew;
 }
+
 
 static void secp256k1_ecmult_const(secp256k1_gej *r, const secp256k1_ge *a, const secp256k1_scalar *scalar) {
     secp256k1_ge pre_a[ECMULT_TABLE_SIZE(WINDOW_A)];

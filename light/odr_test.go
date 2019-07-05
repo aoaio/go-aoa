@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package light
 
 import (
@@ -8,19 +24,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/common/math"
-	"github.com/Aurorachain/go-Aurora/core"
-	"github.com/Aurorachain/go-Aurora/core/state"
-	"github.com/Aurorachain/go-Aurora/core/types"
-	"github.com/Aurorachain/go-Aurora/core/vm"
-	"github.com/Aurorachain/go-Aurora/crypto"
-	"github.com/Aurorachain/go-Aurora/aoadb"
-	"github.com/Aurorachain/go-Aurora/params"
-	"github.com/Aurorachain/go-Aurora/rlp"
-	"github.com/Aurorachain/go-Aurora/trie"
-	"github.com/Aurorachain/go-Aurora/aoa"
-	"github.com/Aurorachain/go-Aurora/consensus/dpos"
+	"github.com/Aurorachain/go-aoa/aoa"
+	"github.com/Aurorachain/go-aoa/aoadb"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/common/math"
+	"github.com/Aurorachain/go-aoa/consensus/dpos"
+	"github.com/Aurorachain/go-aoa/core"
+	"github.com/Aurorachain/go-aoa/core/state"
+	"github.com/Aurorachain/go-aoa/core/types"
+	"github.com/Aurorachain/go-aoa/core/vm"
+	"github.com/Aurorachain/go-aoa/crypto"
+	"github.com/Aurorachain/go-aoa/params"
+	"github.com/Aurorachain/go-aoa/rlp"
+	"github.com/Aurorachain/go-aoa/trie"
 )
 
 var (
@@ -159,8 +175,9 @@ func odrContractCall(ctx context.Context, db aoadb.Database, bc *core.BlockChain
 			st, _ = state.New(header.Root, state.NewDatabase(db))
 		}
 
+		// Perform read-only call.
 		st.SetBalance(testBankAddress, math.MaxBig256)
-		msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 1000000, new(big.Int), data, false, 0, nil, nil, nil, "","")}
+		msg := callmsg{types.NewMessage(testBankAddress, &testContractAddr, 0, new(big.Int), 1000000, new(big.Int), data, false, 0, nil, nil, nil, "", "")}
 		context := core.NewEVMContext(msg, header, chain, nil)
 		vmenv := vm.NewEVM(context, st, config, vm.Config{})
 		gp := new(core.GasPool).AddGas(math.MaxUint64)
@@ -177,29 +194,31 @@ func testChainGen(i int, block *core.BlockGen) {
 	signer := types.NewAuroraSigner(new(big.Int))
 	switch i {
 	case 0:
-
+		// In block 1, the test bank sends account #1 some ether.
 		tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), acc1Addr, big.NewInt(10000), params.TxGas, nil, nil, 0, nil, nil, nil, nil, ""), signer, testBankKey)
 		block.AddTx(tx)
 	case 1:
-
-		tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), acc1Addr, big.NewInt(1000), params.TxGas, nil, nil,0, nil, nil, nil, nil, ""), signer, testBankKey)
+		// In block 2, the test bank sends some more ether to account #1.
+		// acc1Addr passes it on to account #2.
+		// acc1Addr creates a test contract.
+		tx1, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), acc1Addr, big.NewInt(1000), params.TxGas, nil, nil, 0, nil, nil, nil, nil, ""), signer, testBankKey)
 		nonce := block.TxNonce(acc1Addr)
 		tx2, _ := types.SignTx(types.NewTransaction(nonce, acc2Addr, big.NewInt(1000), params.TxGas, nil, nil, 0, nil, nil, nil, nil, ""), signer, acc1Key)
 		nonce++
-		tx3, _ := types.SignTx(types.NewContractCreation(nonce, big.NewInt(0), 1000000, big.NewInt(0), testContractCode,"",nil), signer, acc1Key)
+		tx3, _ := types.SignTx(types.NewContractCreation(nonce, big.NewInt(0), 1000000, big.NewInt(0), testContractCode, "", nil), signer, acc1Key)
 		testContractAddr = crypto.CreateAddress(acc1Addr, nonce)
 		block.AddTx(tx1)
 		block.AddTx(tx2)
 		block.AddTx(tx3)
 	case 2:
-
+		// Block 3 is empty but was mined by account #2.
 		block.SetCoinbase(acc2Addr)
 		block.SetExtra([]byte("yeehaw"))
 		data := common.Hex2Bytes("C16431B900000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001")
 		tx, _ := types.SignTx(types.NewTransaction(block.TxNonce(testBankAddress), testContractAddr, big.NewInt(0), 100000, nil, data, 0, nil, nil, nil, nil, ""), signer, testBankKey)
 		block.AddTx(tx)
 	case 3:
-
+		// Block 4 includes blocks 2 and 3 as uncle headers (with modified extra data).
 		b2 := block.PrevBlock(1).Header()
 		b2.Extra = []byte("foo")
 		block.AddUncle(b2)
@@ -220,8 +239,8 @@ func testChainOdr(t *testing.T, protocol int, fn odrTestFn) {
 		genesis = gspec.MustCommit(sdb)
 	)
 	gspec.MustCommit(ldb)
-
-	blockchain, _ := core.NewBlockChain(sdb, params.TestChainConfig, aoa.CreateAuroraConsensusEngine(), vm.Config{},nil)
+	// Assemble the test environment
+	blockchain, _ := core.NewBlockChain(sdb, params.TestChainConfig, aoa.CreateAuroraConsensusEngine(), vm.Config{}, nil)
 	gchain, _ := core.GenerateChain(params.TestChainConfig, genesis, dpos.New(), sdb, 4, testChainGen)
 	if _, err := blockchain.InsertChain(gchain); err != nil {
 		t.Fatal(err)
@@ -264,14 +283,17 @@ func testChainOdr(t *testing.T, protocol int, fn odrTestFn) {
 		}
 	}
 
+	// expect retrievals to fail (except genesis block) without a les peer
 	t.Log("checking without ODR")
 	odr.disable = true
 	test(1)
 
+	// expect all retrievals to pass with ODR enabled
 	t.Log("checking with ODR")
 	odr.disable = false
 	test(len(gchain))
 
+	// still expect all retrievals to pass, now data should be cached locally
 	t.Log("checking without ODR, should be cached")
 	odr.disable = true
 	test(len(gchain))

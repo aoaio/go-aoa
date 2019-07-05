@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package runtime
 
 import (
@@ -5,15 +21,17 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/Aurorachain/go-Aurora/aoadb"
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/core/state"
-	"github.com/Aurorachain/go-Aurora/core/vm"
-	"github.com/Aurorachain/go-Aurora/crypto"
-	"github.com/Aurorachain/go-Aurora/params"
-	"github.com/Aurorachain/go-Aurora/core/types"
+	"github.com/Aurorachain/go-aoa/aoadb"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/core/state"
+	"github.com/Aurorachain/go-aoa/core/types"
+	"github.com/Aurorachain/go-aoa/core/vm"
+	"github.com/Aurorachain/go-aoa/crypto"
+	"github.com/Aurorachain/go-aoa/params"
 )
 
+// Config is a basic type specifying certain configuration flags for running
+// the EVM.
 type Config struct {
 	ChainConfig *params.ChainConfig
 	Difficulty  *big.Int
@@ -31,10 +49,11 @@ type Config struct {
 	GetHashFn func(n uint64) common.Hash
 }
 
+// sets defaults on the config
 func setDefaults(cfg *Config) {
 	if cfg.ChainConfig == nil {
 		cfg.ChainConfig = &params.ChainConfig{
-			ChainId:        big.NewInt(1),
+			ChainId: big.NewInt(1),
 		}
 	}
 
@@ -63,6 +82,11 @@ func setDefaults(cfg *Config) {
 	}
 }
 
+// Execute executes the code using the input as call data during the execution.
+// It returns the EVM's return value, the new state and an error if it failed.
+//
+// Executes sets up a in memory, temporarily, environment for the execution of
+// the given code. It makes sure that it's restored to it's original state afterwards.
 func Execute(code, input []byte, cfg *Config) ([]byte, *state.StateDB, error) {
 	if cfg == nil {
 		cfg = new(Config)
@@ -79,9 +103,9 @@ func Execute(code, input []byte, cfg *Config) ([]byte, *state.StateDB, error) {
 		sender  = vm.AccountRef(cfg.Origin)
 	)
 	cfg.State.CreateAccount(address)
-
+	// set the receiver's (the executing contract) code for execution.
 	cfg.State.SetCode(address, code)
-
+	// Call the code with the given configuration.
 	ret, _, err := vmenv.Call(
 		sender,
 		common.BytesToAddress([]byte("contract")),
@@ -94,6 +118,7 @@ func Execute(code, input []byte, cfg *Config) ([]byte, *state.StateDB, error) {
 	return ret, cfg.State, err
 }
 
+// Create executes the code using the EVM create method
 func Create(input []byte, cfg *Config) ([]byte, common.Address, uint64, error) {
 	if cfg == nil {
 		cfg = new(Config)
@@ -109,24 +134,30 @@ func Create(input []byte, cfg *Config) ([]byte, common.Address, uint64, error) {
 		sender = vm.AccountRef(cfg.Origin)
 	)
 
+	// Call the code with the given configuration.
 	code, address, leftOverGas, err := vmenv.Create(
 		sender,
 		input,
 		cfg.GasLimit,
-		nil,
+		"",
 		cfg.Value,
 		"",
 	)
 	return code, address, leftOverGas, err
 }
 
+// Call executes the code given by the contract's address. It will return the
+// EVM's return value or an error if it failed.
+//
+// Call, unlike Execute, requires a config and also requires the State field to
+// be set.
 func Call(address common.Address, input []byte, cfg *Config) ([]byte, uint64, error) {
 	setDefaults(cfg)
 
 	vmenv := NewEnv(cfg)
 
 	sender := cfg.State.GetOrNewStateObject(cfg.Origin)
-
+	// Call the code with the given configuration.
 	ret, leftOverGas, err := vmenv.Call(
 		sender,
 		address,

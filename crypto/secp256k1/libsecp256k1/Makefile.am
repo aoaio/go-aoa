@@ -128,7 +128,7 @@ if USE_JNI
 
 $(JAVA_GUAVA):
 	@echo Guava is missing. Fetch it via: \
-	wget https:
+	wget https://search.maven.org/remotecontent?filepath=com/google/guava/guava/18.0/guava-18.0.jar -O $(@)
 	@false
 
 .stamp-java: $(JAVA_FILES)

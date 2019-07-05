@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package rlp
 
 import (
@@ -17,14 +33,22 @@ type typeinfo struct {
 	writer
 }
 
+// represents struct tags
 type tags struct {
+	// rlp:"nil" controls whether empty input results in a nil pointer.
 	nilOK bool
+	// rlp:"tail" controls whether this field swallows additional list
+	// elements. It can only be set for the last field, which must be
+	// of slice type.
 	tail bool
+	// rlp:"-" ignores fields.
 	ignored bool
 }
 
 type typekey struct {
 	reflect.Type
+	// the key must include the struct tags because they
+	// might generate a different decoder.
 	tags
 }
 
@@ -39,6 +63,7 @@ func cachedTypeInfo(typ reflect.Type, tags tags) (*typeinfo, error) {
 	if info != nil {
 		return info, nil
 	}
+	// not in the cache, need to generate info for this type.
 	typeCacheMutex.Lock()
 	defer typeCacheMutex.Unlock()
 	return cachedTypeInfo1(typ, tags)
@@ -48,11 +73,16 @@ func cachedTypeInfo1(typ reflect.Type, tags tags) (*typeinfo, error) {
 	key := typekey{typ, tags}
 	info := typeCache[key]
 	if info != nil {
+		// another goroutine got the write lock first
 		return info, nil
 	}
+	// put a dummmy value into the cache before generating.
+	// if the generator tries to lookup itself, it will get
+	// the dummy value and won't call itself recursively.
 	typeCache[key] = new(typeinfo)
 	info, err := genTypeInfo(typ, tags)
 	if err != nil {
+		// remove the dummy value if the generator fails
 		delete(typeCache, key)
 		return nil, err
 	}

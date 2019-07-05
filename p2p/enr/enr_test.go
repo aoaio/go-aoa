@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package enr
 
 import (
@@ -8,8 +24,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Aurorachain/go-Aurora/crypto"
-	"github.com/Aurorachain/go-Aurora/rlp"
+	"github.com/Aurorachain/go-aoa/crypto"
+	"github.com/Aurorachain/go-aoa/rlp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,6 +43,7 @@ func randomString(strlen int) string {
 	return string(b)
 }
 
+// TestGetSetID tests encoding/decoding and setting/getting of the ID key.
 func TestGetSetID(t *testing.T) {
 	id := ID("someid")
 	var r Record
@@ -37,6 +54,7 @@ func TestGetSetID(t *testing.T) {
 	assert.Equal(t, id, id2)
 }
 
+// TestGetSetIP4 tests encoding/decoding and setting/getting of the IP4 key.
 func TestGetSetIP4(t *testing.T) {
 	ip := IP4{192, 168, 0, 3}
 	var r Record
@@ -47,6 +65,7 @@ func TestGetSetIP4(t *testing.T) {
 	assert.Equal(t, ip, ip2)
 }
 
+// TestGetSetIP6 tests encoding/decoding and setting/getting of the IP6 key.
 func TestGetSetIP6(t *testing.T) {
 	ip := IP6{0x20, 0x01, 0x48, 0x60, 0, 0, 0x20, 0x01, 0, 0, 0, 0, 0, 0, 0x00, 0x68}
 	var r Record
@@ -57,6 +76,7 @@ func TestGetSetIP6(t *testing.T) {
 	assert.Equal(t, ip, ip2)
 }
 
+// TestGetSetDiscPort tests encoding/decoding and setting/getting of the DiscPort key.
 func TestGetSetDiscPort(t *testing.T) {
 	port := DiscPort(30309)
 	var r Record
@@ -67,6 +87,7 @@ func TestGetSetDiscPort(t *testing.T) {
 	assert.Equal(t, port, port2)
 }
 
+// TestGetSetSecp256k1 tests encoding/decoding and setting/getting of the Secp256k1 key.
 func TestGetSetSecp256k1(t *testing.T) {
 	var r Record
 	if err := r.Sign(privkey); err != nil {
@@ -83,6 +104,7 @@ func TestLoadErrors(t *testing.T) {
 	ip4 := IP4{127, 0, 0, 1}
 	r.Set(ip4)
 
+	// Check error for missing keys.
 	var ip6 IP6
 	err := r.Load(&ip6)
 	if !IsNotFound(err) {
@@ -90,6 +112,7 @@ func TestLoadErrors(t *testing.T) {
 	}
 	assert.Equal(t, &KeyError{Key: ip6.ENRKey(), Err: errNotFound}, err)
 
+	// Check error for invalid keys.
 	var list []uint
 	err = r.Load(WithEntry(ip4.ENRKey(), &list))
 	kerr, ok := err.(*KeyError)
@@ -103,6 +126,7 @@ func TestLoadErrors(t *testing.T) {
 	}
 }
 
+// TestSortedGetAndSet tests that Set produced a sorted pairs slice.
 func TestSortedGetAndSet(t *testing.T) {
 	type pair struct {
 		k string
@@ -131,7 +155,7 @@ func TestSortedGetAndSet(t *testing.T) {
 			r.Set(WithEntry(i.k, &i.v))
 		}
 		for i, w := range tt.want {
-
+			// set got's key from r.pair[i], so that we preserve order of pairs
 			got := pair{k: r.pairs[i].k}
 			assert.NoError(t, r.Load(WithEntry(w.k, &got.v)))
 			assert.Equal(t, w, got)
@@ -139,6 +163,7 @@ func TestSortedGetAndSet(t *testing.T) {
 	}
 }
 
+// TestDirty tests record signature removal on setting of new key/value pair in record.
 func TestDirty(t *testing.T) {
 	var r Record
 
@@ -165,6 +190,7 @@ func TestDirty(t *testing.T) {
 	}
 }
 
+// TestGetSetOverwrite tests value overwrite when setting a new value with an existing key in record.
 func TestGetSetOverwrite(t *testing.T) {
 	var r Record
 
@@ -179,6 +205,7 @@ func TestGetSetOverwrite(t *testing.T) {
 	assert.Equal(t, ip2, ip3)
 }
 
+// TestSignEncodeAndDecode tests signing, RLP encoding and RLP decoding of a record.
 func TestSignEncodeAndDecode(t *testing.T) {
 	var r Record
 	r.Set(DiscPort(30303))
@@ -210,6 +237,8 @@ func TestNodeAddr(t *testing.T) {
 
 var pyRecord, _ = hex.DecodeString("f896b840954dc36583c1f4b69ab59b1375f362f06ee99f3723cd77e64b6de6d211c27d7870642a79d4516997f94091325d2a7ca6215376971455fb221d34f35b277149a1018664697363763582765f82696490736563703235366b312d6b656363616b83697034847f00000189736563703235366b31a103ca634cae0d49acb401d8a4c6b6fe8c55b70d115bf400769cc1400f3258cd3138")
 
+// TestPythonInterop checks that we can decode and verify a record produced by the Python
+// implementation.
 func TestPythonInterop(t *testing.T) {
 	var r Record
 	if err := rlp.DecodeBytes(pyRecord, &r); err != nil {
@@ -237,22 +266,27 @@ func TestPythonInterop(t *testing.T) {
 	}
 }
 
+// TestRecordTooBig tests that records bigger than SizeLimit bytes cannot be signed.
 func TestRecordTooBig(t *testing.T) {
 	var r Record
 	key := randomString(10)
 
+	// set a big value for random key, expect error
 	r.Set(WithEntry(key, randomString(300)))
 	if err := r.Sign(privkey); err != errTooBig {
 		t.Fatalf("expected to get errTooBig, got %#v", err)
 	}
 
+	// set an acceptable value for random key, expect no error
 	r.Set(WithEntry(key, randomString(100)))
 	require.NoError(t, r.Sign(privkey))
 }
 
+// TestSignEncodeAndDecodeRandom tests encoding/decoding of records containing random key/value pairs.
 func TestSignEncodeAndDecodeRandom(t *testing.T) {
 	var r Record
 
+	// random key/value pairs for testing
 	pairs := map[string]uint32{}
 	for i := 0; i < 10; i++ {
 		key := randomString(7)

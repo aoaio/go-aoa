@@ -1,9 +1,16 @@
+// Copyright 2012 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package bn256
 
 import (
 	"math/big"
 )
 
+// twistPoint implements the elliptic curve y²=x³+3/ξ over GF(p²). Points are
+// kept in Jacobian form and t=z² when valid. The group G₂ is the set of
+// n-torsion points of this curve over GF(p²) (where n = Order)
 type twistPoint struct {
 	x, y, z, t *gfP2
 }
@@ -13,6 +20,7 @@ var twistB = &gfP2{
 	bigFromBase10("19485874751759354771024239261021720505790618469301721065564631296452457478373"),
 }
 
+// twistGen is the generator of group G₂.
 var twistGen = &twistPoint{
 	&gfP2{
 		bigFromBase10("11559732032986387107991004021392285783925812861821192530917403151452391805634"),
@@ -59,6 +67,7 @@ func (c *twistPoint) Set(a *twistPoint) {
 	c.t.Set(a.t)
 }
 
+// IsOnCurve returns true iff c is on the curve where c must be in affine form.
 func (c *twistPoint) IsOnCurve() bool {
 	pool := new(bnPool)
 	yy := newGFp2(pool).Square(c.y, pool)
@@ -79,6 +88,7 @@ func (c *twistPoint) IsInfinity() bool {
 }
 
 func (c *twistPoint) Add(a, b *twistPoint, pool *bnPool) {
+	// For additional comments, see the same function in curve.go.
 
 	if a.IsInfinity() {
 		c.Set(b)
@@ -89,6 +99,7 @@ func (c *twistPoint) Add(a, b *twistPoint, pool *bnPool) {
 		return
 	}
 
+	// See http://hyperelliptic.org/EFD/g1p/auto-code/shortw/jacobian-0/addition/add-2007-bl.op3
 	z1z1 := newGFp2(pool).Square(a.z, pool)
 	z2z2 := newGFp2(pool).Square(b.z, pool)
 	u1 := newGFp2(pool).Mul(a.x, z2z2, pool)
@@ -122,16 +133,16 @@ func (c *twistPoint) Add(a, b *twistPoint, pool *bnPool) {
 	t6 := newGFp2(pool).Sub(t4, j)
 	c.x.Sub(t6, t)
 
-	t.Sub(v, c.x)
-	t4.Mul(s1, j, pool)
-	t6.Add(t4, t4)
-	t4.Mul(r, t, pool)
+	t.Sub(v, c.x)       // t7
+	t4.Mul(s1, j, pool) // t8
+	t6.Add(t4, t4)      // t9
+	t4.Mul(r, t, pool)  // t10
 	c.y.Sub(t4, t6)
 
-	t.Add(a.z, b.z)
-	t4.Square(t, pool)
-	t.Sub(t4, z1z1)
-	t4.Sub(t, z2z2)
+	t.Add(a.z, b.z)    // t11
+	t4.Square(t, pool) // t12
+	t.Sub(t4, z1z1)    // t13
+	t4.Sub(t, z2z2)    // t14
 	c.z.Mul(t4, h, pool)
 
 	z1z1.Put(pool)
@@ -151,7 +162,7 @@ func (c *twistPoint) Add(a, b *twistPoint, pool *bnPool) {
 }
 
 func (c *twistPoint) Double(a *twistPoint, pool *bnPool) {
-
+	// See http://hyperelliptic.org/EFD/g1p/auto-code/shortw/jacobian-0/doubling/dbl-2009-l.op3
 	A := newGFp2(pool).Square(a.x, pool)
 	B := newGFp2(pool).Square(a.y, pool)
 	C_ := newGFp2(pool).Square(B, pool)

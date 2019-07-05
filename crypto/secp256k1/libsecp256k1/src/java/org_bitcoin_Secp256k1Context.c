@@ -12,3 +12,4 @@ SECP256K1_API jlong JNICALL Java_org_bitcoin_Secp256k1Context_secp256k1_1init_1c
 
   return (uintptr_t)ctx;
 }
+

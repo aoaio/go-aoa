@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package secp256k1
 
 import (
@@ -8,8 +24,8 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/Aurorachain/go-Aurora/common/math"
-	"github.com/Aurorachain/go-Aurora/crypto/randentropy"
+	"github.com/Aurorachain/go-aoa/common/math"
+	"github.com/Aurorachain/go-aoa/crypto/randentropy"
 )
 
 const TestCount = 1000
@@ -30,6 +46,8 @@ func randSig() []byte {
 	return sig
 }
 
+// tests for malleability
+// highest bit of signature ECDSA s value must be 0, in the 33th byte
 func compactSigCheck(t *testing.T, sig []byte) {
 	var b int = int(sig[32])
 	if b < 0 {
@@ -140,6 +158,7 @@ func signAndRecoverWithRandomMessages(t *testing.T, keys func() ([]byte, []byte)
 		}
 		compactSigCheck(t, sig)
 
+		// TODO: why do we flip around the recovery id?
 		sig[len(sig)-1] %= 4
 
 		pubkey2, err := RecoverPubkey(msg, sig)
@@ -160,7 +179,7 @@ func TestRecoveryOfRandomSignature(t *testing.T) {
 	msg := randentropy.GetEntropyCSPRNG(32)
 
 	for i := 0; i < TestCount; i++ {
-
+		// recovery can sometimes work, but if so should always give wrong pubkey
 		pubkey2, _ := RecoverPubkey(msg, randSig())
 		if bytes.Equal(pubkey1, pubkey2) {
 			t.Fatalf("iteration: %d: pubkey mismatch: do NOT want %x: ", i, pubkey2)
@@ -176,13 +195,15 @@ func TestRandomMessagesAgainstValidSig(t *testing.T) {
 	for i := 0; i < TestCount; i++ {
 		msg = randentropy.GetEntropyCSPRNG(32)
 		pubkey2, _ := RecoverPubkey(msg, sig)
-
+		// recovery can sometimes work, but if so should always give wrong pubkey
 		if bytes.Equal(pubkey1, pubkey2) {
 			t.Fatalf("iteration: %d: pubkey mismatch: do NOT want %x: ", i, pubkey2)
 		}
 	}
 }
 
+// Useful when the underlying libsecp256k1 API changes to quickly
+// check only recover function without use of signature function
 func TestRecoverSanity(t *testing.T) {
 	msg, _ := hex.DecodeString("ce0677bb30baa8cf067c88db9811f4333d131bf8bcf12fe7065d211dce971008")
 	sig, _ := hex.DecodeString("90f27b8b488db00b00606796d2987f6a5f59ae62ea05effe84fef5b8b0e549984a691139ad57a3f0b906637673aa2f63d1f55cb1a69199d4009eea23ceaddc9301")

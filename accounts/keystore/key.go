@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package keystore
 
 import (
@@ -13,9 +29,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Aurorachain/go-Aurora/accounts"
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/crypto"
+	"github.com/Aurorachain/go-aoa/accounts"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/crypto"
 	"github.com/pborman/uuid"
 )
 
@@ -24,19 +40,20 @@ const (
 )
 
 type Key struct {
-	Id uuid.UUID
-
+	Id uuid.UUID // Version 4 "random" for unique id not derived from key data
+	// to simplify lookups we also store the address
 	Address common.Address
-
+	// we only store privkey as pubkey/address can be derived from it
+	// privkey in this struct is always in plaintext
 	PrivateKey *ecdsa.PrivateKey
 }
 
 type keyStore interface {
-
+	// Loads and decrypts the key from disk.
 	GetKey(addr common.Address, filename string, auth string) (*Key, error)
-
+	// Writes and encrypts the key.
 	StoreKey(filename string, k *Key, auth string) error
-
+	// Joins filename with the key directory unless it is already absolute.
 	JoinPath(filename string) string
 }
 
@@ -120,6 +137,9 @@ func newKeyFromECDSA(privateKeyECDSA *ecdsa.PrivateKey) *Key {
 	return key
 }
 
+// NewKeyForDirectICAP generates a key whose address fits into < 155 bits so it can fit
+// into the Direct ICAP spec. for simplicity and easier compatibility with other libs, we
+// retry until the first byte is 0.
 func NewKeyForDirectICAP(rand io.Reader) *Key {
 	randBytes := make([]byte, 64)
 	_, err := rand.Read(randBytes)
@@ -160,12 +180,14 @@ func storeNewKey(ks keyStore, rand io.Reader, auth string) (*Key, accounts.Accou
 }
 
 func writeKeyFile(file string, content []byte) error {
-
+	// Create the keystore directory with appropriate permissions
+	// in case it is not present yet.
 	const dirPerm = 0700
 	if err := os.MkdirAll(filepath.Dir(file), dirPerm); err != nil {
 		return err
 	}
-
+	// Atomic write: create a temporary hidden file first
+	// then move it into place. TempFile assigns mode 0600.
 	f, err := ioutil.TempFile(filepath.Dir(file), "."+filepath.Base(file)+".tmp")
 	if err != nil {
 		return err
@@ -179,6 +201,8 @@ func writeKeyFile(file string, content []byte) error {
 	return os.Rename(f.Name(), file)
 }
 
+// keyFileName implements the naming convention for keyfiles:
+// UTC--<created_at UTC ISO8601>-<address hex>
 func keyFileName(keyAddr common.Address) string {
 	ts := time.Now().UTC()
 	return fmt.Sprintf("UTC--%s--%s", toISO8601(ts), hex.EncodeToString(keyAddr[:]))

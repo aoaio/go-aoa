@@ -1,5 +1,5 @@
 # ===========================================================================
-#    http:
+#    http://www.gnu.org/software/autoconf-archive/ax_jni_include_dir.html
 # ===========================================================================
 #
 # SYNOPSIS
@@ -62,7 +62,7 @@ else
 		AC_MSG_WARN([cannot find JDK; try setting \$JAVAC or \$JAVA_HOME])
 	fi
 	_ACJNI_FOLLOW_SYMLINKS("$_ACJNI_JAVAC")
-	_JTOPDIR=`echo "$_ACJNI_FOLLOWED" | sed -e 's:
+	_JTOPDIR=`echo "$_ACJNI_FOLLOWED" | sed -e 's://*:/:g' -e 's:/[[^/]]*$::'`
 fi
 
 case "$host_os" in
@@ -92,6 +92,8 @@ else
   fi
 fi
 ])
+
+
 
 # get the likely subdirectories for system specific java includes
 case "$host_os" in
@@ -126,11 +128,11 @@ AC_DEFUN([_ACJNI_FOLLOW_SYMLINKS],[
 _cur="$1"
 while ls -ld "$_cur" 2>/dev/null | grep " -> " >/dev/null; do
         AC_MSG_CHECKING([symlink for $_cur])
-        _slink=`ls -ld "$_cur" | sed 's/.* ->
+        _slink=`ls -ld "$_cur" | sed 's/.* -> //'`
         case "$_slink" in
         /*) _cur="$_slink";;
         # 'X' avoids triggering unwanted echo options.
-        *) _cur=`echo "X$_cur" | sed -e 's/^X
+        *) _cur=`echo "X$_cur" | sed -e 's/^X//' -e 's:[[^/]]*$::'`"$_slink";;
         esac
         AC_MSG_RESULT([$_cur])
 done

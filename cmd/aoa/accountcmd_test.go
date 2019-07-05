@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of go-aurora.
+//
+// go-aurora is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-aurora is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-aurora. If not, see <http://www.gnu.org/licenses/>.
+
 package main
 
 import (
@@ -9,6 +25,12 @@ import (
 
 	"github.com/cespare/cp"
 )
+
+// These tests are 'smoke tests' for the account related
+// subcommands and flags.
+//
+// For most tests, the test files from package accounts
+// are copied into a temporary keystore directory.
 
 func tmpDatadirWithKeystore(t *testing.T) string {
 	datadir := tmpdir(t)
@@ -31,15 +53,15 @@ func TestAccountList(t *testing.T) {
 	defer geth.ExpectExit()
 	if runtime.GOOS == "windows" {
 		geth.Expect(`
-Account #0: {7ef5a6135f1fd6a02593eedc869c6d41d934aef8} keystore:
-Account #1: {f466859ead1932d743d622cb74fc058882e8648a} keystore:
-Account #2: {289d485d9771714cce91d3393d764e1311907acc} keystore:
+Account #0: {7ef5a6135f1fd6a02593eedc869c6d41d934aef8} keystore://{{.Datadir}}\keystore\UTC--2016-03-22T12-57-55.920751759Z--7ef5a6135f1fd6a02593eedc869c6d41d934aef8
+Account #1: {f466859ead1932d743d622cb74fc058882e8648a} keystore://{{.Datadir}}\keystore\aaa
+Account #2: {289d485d9771714cce91d3393d764e1311907acc} keystore://{{.Datadir}}\keystore\zzz
 `)
 	} else {
 		geth.Expect(`
-Account #0: {7ef5a6135f1fd6a02593eedc869c6d41d934aef8} keystore:
-Account #1: {f466859ead1932d743d622cb74fc058882e8648a} keystore:
-Account #2: {289d485d9771714cce91d3393d764e1311907acc} keystore:
+Account #0: {7ef5a6135f1fd6a02593eedc869c6d41d934aef8} keystore://{{.Datadir}}/keystore/UTC--2016-03-22T12-57-55.920751759Z--7ef5a6135f1fd6a02593eedc869c6d41d934aef8
+Account #1: {f466859ead1932d743d622cb74fc058882e8648a} keystore://{{.Datadir}}/keystore/aaa
+Account #2: {289d485d9771714cce91d3393d764e1311907acc} keystore://{{.Datadir}}/keystore/zzz
 `)
 	}
 }
@@ -217,6 +239,7 @@ func TestUnlockFlagAmbiguous(t *testing.T) {
 		"js", "testdata/empty.js")
 	defer geth.ExpectExit()
 
+	// Helper for the expect template, returns absolute keystore path.
 	geth.SetTemplateFunc("keypath", func(file string) string {
 		abs, _ := filepath.Abs(filepath.Join(store, file))
 		return abs
@@ -226,12 +249,12 @@ Unlocking account f466859ead1932d743d622cb74fc058882e8648a | Attempt 1/3
 !! Unsupported terminal, password will be echoed.
 Passphrase: {{.InputLine "foobar"}}
 Multiple key files exist for address f466859ead1932d743d622cb74fc058882e8648a:
-   keystore:
-   keystore:
+   keystore://{{keypath "1"}}
+   keystore://{{keypath "2"}}
 Testing your passphrase against all of them...
-Your passphrase unlocked keystore:
+Your passphrase unlocked keystore://{{keypath "1"}}
 In order to avoid this warning, you need to remove the following duplicate key files:
-   keystore:
+   keystore://{{keypath "2"}}
 `)
 	geth.ExpectExit()
 
@@ -253,6 +276,7 @@ func TestUnlockFlagAmbiguousWrongPassword(t *testing.T) {
 		"--unlock", "f466859ead1932d743d622cb74fc058882e8648a")
 	defer geth.ExpectExit()
 
+	// Helper for the expect template, returns absolute keystore path.
 	geth.SetTemplateFunc("keypath", func(file string) string {
 		abs, _ := filepath.Abs(filepath.Join(store, file))
 		return abs
@@ -262,8 +286,8 @@ Unlocking account f466859ead1932d743d622cb74fc058882e8648a | Attempt 1/3
 !! Unsupported terminal, password will be echoed.
 Passphrase: {{.InputLine "wrong"}}
 Multiple key files exist for address f466859ead1932d743d622cb74fc058882e8648a:
-   keystore:
-   keystore:
+   keystore://{{keypath "1"}}
+   keystore://{{keypath "2"}}
 Testing your passphrase against all of them...
 Fatal: None of the listed files could be unlocked.
 `)

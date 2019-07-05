@@ -1,10 +1,26 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package state
 
 import (
 	"math/big"
 
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/core/types"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/core/types"
 )
 
 type journalEntry interface {
@@ -14,7 +30,7 @@ type journalEntry interface {
 type journal []journalEntry
 
 type (
-
+	// Changes to the account trie.
 	createObjectChange struct {
 		account *common.Address
 	}
@@ -23,10 +39,11 @@ type (
 	}
 	suicideChange struct {
 		account     *common.Address
-		prev        bool
+		prev        bool // whether account had already suicided
 		prevbalance *big.Int
 	}
 
+	// Changes to individual accounts.
 	balanceChange struct {
 		account *common.Address
 		prev    *big.Int
@@ -55,6 +72,7 @@ type (
 		prevcode, prevhash []byte
 	}
 
+	// Changes to other state values.
 	refundChange struct {
 		prev uint64
 	}
@@ -73,7 +91,7 @@ type (
 	assetBalanceChange struct {
 		account    *common.Address
 		asset      types.Asset
-		preOpIsAdd bool
+		preOpIsAdd bool //true: previous operation is add balance; false: previous operation is sub balance
 	}
 )
 

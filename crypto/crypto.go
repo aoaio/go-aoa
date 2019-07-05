@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package crypto
 
 import (
@@ -12,10 +28,10 @@ import (
 	"math/big"
 	"os"
 
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/common/math"
-	"github.com/Aurorachain/go-Aurora/crypto/sha3"
-	"github.com/Aurorachain/go-Aurora/rlp"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/common/math"
+	"github.com/Aurorachain/go-aoa/crypto/sha3"
+	"github.com/Aurorachain/go-aoa/rlp"
 )
 
 var (
@@ -23,6 +39,7 @@ var (
 	secp256k1_halfN = new(big.Int).Div(secp256k1_N, big.NewInt(2))
 )
 
+// Keccak256 calculates and returns the Keccak256 hash of the input data.
 func Keccak256(data ...[]byte) []byte {
 	d := sha3.NewKeccak256()
 	for _, b := range data {
@@ -31,6 +48,8 @@ func Keccak256(data ...[]byte) []byte {
 	return d.Sum(nil)
 }
 
+// Keccak256Hash calculates and returns the Keccak256 hash of the input data,
+// converting it to an internal Hash data structure.
 func Keccak256Hash(data ...[]byte) (h common.Hash) {
 	d := sha3.NewKeccak256()
 	for _, b := range data {
@@ -40,6 +59,7 @@ func Keccak256Hash(data ...[]byte) (h common.Hash) {
 	return h
 }
 
+// Keccak512 calculates and returns the Keccak512 hash of the input data.
 func Keccak512(data ...[]byte) []byte {
 	d := sha3.NewKeccak512()
 	for _, b := range data {
@@ -48,20 +68,28 @@ func Keccak512(data ...[]byte) []byte {
 	return d.Sum(nil)
 }
 
+// Creates an aurora address given the bytes and the nonce
 func CreateAddress(b common.Address, nonce uint64) common.Address {
 	data, _ := rlp.EncodeToBytes([]interface{}{b, nonce})
 	return common.BytesToAddress(Keccak256(data)[12:])
 }
 
+// ToECDSA creates a private key with the given D value.
 func ToECDSA(d []byte) (*ecdsa.PrivateKey, error) {
 	return toECDSA(d, true)
 }
 
+// ToECDSAUnsafe blindly converts a binary blob to a private key. It should almost
+// never be used unless you are sure the input is valid and want to avoid hitting
+// errors due to bad origin encoding (0 prefixes cut off).
 func ToECDSAUnsafe(d []byte) *ecdsa.PrivateKey {
 	priv, _ := toECDSA(d, false)
 	return priv
 }
 
+// toECDSA creates a private key with the given D value. The strict parameter
+// controls whether the key's length should be enforced at the curve size or
+// it can also accept legacy encodings (0 prefixes).
 func toECDSA(d []byte, strict bool) (*ecdsa.PrivateKey, error) {
 	priv := new(ecdsa.PrivateKey)
 	priv.PublicKey.Curve = S256()
@@ -70,10 +98,11 @@ func toECDSA(d []byte, strict bool) (*ecdsa.PrivateKey, error) {
 	}
 	priv.D = new(big.Int).SetBytes(d)
 
+	// The priv.D must < N
 	if priv.D.Cmp(secp256k1_N) >= 0 {
 		return nil, fmt.Errorf("invalid private key, >=N")
 	}
-
+	// The priv.D must not be zero or negative.
 	if priv.D.Sign() <= 0 {
 		return nil, fmt.Errorf("invalid private key, zero or negative")
 	}
@@ -85,6 +114,7 @@ func toECDSA(d []byte, strict bool) (*ecdsa.PrivateKey, error) {
 	return priv, nil
 }
 
+// FromECDSA exports a private key into a binary dump.
 func FromECDSA(priv *ecdsa.PrivateKey) []byte {
 	if priv == nil {
 		return nil
@@ -107,6 +137,7 @@ func FromECDSAPub(pub *ecdsa.PublicKey) []byte {
 	return elliptic.Marshal(S256(), pub.X, pub.Y)
 }
 
+// HexToECDSA parses a secp256k1 private key.
 func HexToECDSA(hexkey string) (*ecdsa.PrivateKey, error) {
 	b, err := hex.DecodeString(hexkey)
 	if err != nil {
@@ -115,6 +146,7 @@ func HexToECDSA(hexkey string) (*ecdsa.PrivateKey, error) {
 	return ToECDSA(b)
 }
 
+// LoadECDSA loads a secp256k1 private key from the given file.
 func LoadECDSA(file string) (*ecdsa.PrivateKey, error) {
 	buf := make([]byte, 64)
 	fd, err := os.Open(file)
@@ -133,6 +165,8 @@ func LoadECDSA(file string) (*ecdsa.PrivateKey, error) {
 	return ToECDSA(key)
 }
 
+// SaveECDSA saves a secp256k1 private key to the given file with
+// restrictive permissions. The key data is saved hex-encoded.
 func SaveECDSA(file string, key *ecdsa.PrivateKey) error {
 	k := hex.EncodeToString(FromECDSA(key))
 	return ioutil.WriteFile(file, []byte(k), 0600)
@@ -142,15 +176,18 @@ func GenerateKey() (*ecdsa.PrivateKey, error) {
 	return ecdsa.GenerateKey(S256(), rand.Reader)
 }
 
+// ValidateSignatureValues verifies whether the signature values are valid with
+// the given chain rules. The v value is assumed to be either 0 or 1.
 func ValidateSignatureValues(v byte, r, s *big.Int, homestead bool) bool {
 	if r.Cmp(common.Big1) < 0 || s.Cmp(common.Big1) < 0 {
 		return false
 	}
-
+	// reject upper range of s values (ECDSA malleability)
+	// see discussion in secp256k1/libsecp256k1/include/secp256k1.h
 	if homestead && s.Cmp(secp256k1_halfN) > 0 {
 		return false
 	}
-
+	// Frontier: allow s to be in full N range
 	return r.Cmp(secp256k1_N) < 0 && s.Cmp(secp256k1_N) < 0 && (v == 0 || v == 1)
 }
 

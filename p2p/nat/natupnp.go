@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package nat
 
 import (
@@ -84,9 +100,11 @@ func (n *upnp) String() string {
 	return "UPNP " + n.service
 }
 
+// discoverUPnP searches for Internet Gateway Devices
+// and returns the first one it can find on the local network.
 func discoverUPnP() Interface {
 	found := make(chan *upnp, 2)
-
+	// IGDv1
 	go discover(found, internetgateway1.URN_WANConnectionDevice_1, func(dev *goupnp.RootDevice, sc goupnp.ServiceClient) *upnp {
 		switch sc.Service.ServiceType {
 		case internetgateway1.URN_WANIPConnection_1:
@@ -96,7 +114,7 @@ func discoverUPnP() Interface {
 		}
 		return nil
 	})
-
+	// IGDv2
 	go discover(found, internetgateway2.URN_WANConnectionDevice_2, func(dev *goupnp.RootDevice, sc goupnp.ServiceClient) *upnp {
 		switch sc.Service.ServiceType {
 		case internetgateway2.URN_WANIPConnection_1:
@@ -116,6 +134,9 @@ func discoverUPnP() Interface {
 	return nil
 }
 
+// finds devices matching the given target and calls matcher for all
+// advertised services of each device. The first non-nil service found
+// is sent into out. If no service matched, nil is sent.
 func discover(out chan<- *upnp, target string, matcher func(*goupnp.RootDevice, goupnp.ServiceClient) *upnp) {
 	devs, err := goupnp.DiscoverDevices(target)
 	if err != nil {
@@ -131,7 +152,7 @@ func discover(out chan<- *upnp, target string, matcher func(*goupnp.RootDevice, 
 			if found {
 				return
 			}
-
+			// check for a matching IGD service
 			sc := goupnp.ServiceClient{
 				SOAPClient: service.NewSOAPClient(),
 				RootDevice: devs[i].Root,
@@ -143,7 +164,7 @@ func discover(out chan<- *upnp, target string, matcher func(*goupnp.RootDevice, 
 			if upnp == nil {
 				return
 			}
-
+			// check whether port mapping is enabled
 			if _, nat, err := upnp.client.GetNATRSIPStatus(); err != nil || !nat {
 				return
 			}

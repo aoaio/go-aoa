@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package abi
 
 import (
@@ -5,6 +21,8 @@ import (
 	"reflect"
 )
 
+// indirect recursively dereferences the value until it either gets the value
+// or finds a big.Int
 func indirect(v reflect.Value) reflect.Value {
 	if v.Kind() == reflect.Ptr && v.Elem().Type() != derefbig_t {
 		return indirect(v.Elem())
@@ -12,6 +30,8 @@ func indirect(v reflect.Value) reflect.Value {
 	return v
 }
 
+// reflectIntKind returns the reflect using the given size and
+// unsignedness.
 func reflectIntKindAndType(unsigned bool, size int) (reflect.Kind, reflect.Type) {
 	switch size {
 	case 8:
@@ -38,12 +58,18 @@ func reflectIntKindAndType(unsigned bool, size int) (reflect.Kind, reflect.Type)
 	return reflect.Ptr, big_t
 }
 
+// mustArrayToBytesSlice creates a new byte slice with the exact same size as value
+// and copies the bytes in value to the new slice.
 func mustArrayToByteSlice(value reflect.Value) reflect.Value {
 	slice := reflect.MakeSlice(reflect.TypeOf([]byte{}), value.Len(), value.Len())
 	reflect.Copy(slice, value)
 	return slice
 }
 
+// set attempts to assign src to dst by either setting, copying or otherwise.
+//
+// set is a bit more lenient when it comes to assignment and doesn't force an as
+// strict ruleset as bare `reflect` does.
 func set(dst, src reflect.Value, output Argument) error {
 	dstType := dst.Type()
 	srcType := src.Type()
@@ -60,6 +86,7 @@ func set(dst, src reflect.Value, output Argument) error {
 	return nil
 }
 
+// requireAssignable assures that `dest` is a pointer and it's not an interface.
 func requireAssignable(dst, src reflect.Value) error {
 	if dst.Kind() != reflect.Ptr && dst.Kind() != reflect.Interface {
 		return fmt.Errorf("abi: cannot unmarshal %v into %v", src.Type(), dst.Type())
@@ -67,6 +94,7 @@ func requireAssignable(dst, src reflect.Value) error {
 	return nil
 }
 
+// requireUnpackKind verifies preconditions for unpacking `args` into `kind`
 func requireUnpackKind(v reflect.Value, t reflect.Type, k reflect.Kind,
 	args Arguments) error {
 

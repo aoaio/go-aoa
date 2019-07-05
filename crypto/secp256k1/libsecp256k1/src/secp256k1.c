@@ -1,7 +1,7 @@
 /**********************************************************************
  * Copyright (c) 2013-2015 Pieter Wuille                              *
  * Distributed under the MIT software license, see the accompanying   *
- * file COPYING or http:
+ * file COPYING or http://www.opensource.org/licenses/mit-license.php.*
  **********************************************************************/
 
 #include "include/secp256k1.h"
@@ -46,6 +46,7 @@ static const secp256k1_callback default_error_callback = {
     default_error_callback_fn,
     NULL
 };
+
 
 struct secp256k1_context_struct {
     secp256k1_ecmult_context ecmult_ctx;

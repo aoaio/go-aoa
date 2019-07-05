@@ -2,7 +2,7 @@
 /**********************************************************************
  * Copyright (c) 2014 Wladimir J. van der Laan                        *
  * Distributed under the MIT software license, see the accompanying   *
- * file COPYING or http:
+ * file COPYING or http://www.opensource.org/licenses/mit-license.php.*
  **********************************************************************/
 /*
 ARM implementation of field_10x26 inner loops.
@@ -498,7 +498,7 @@ secp256k1_fe_mul_inner:
 	mov	r5, r5, lsr #26     		@ d >>= 26
 	orr	r5, r5, r6, asl #6
 	mov     r6, r6, lsr #26
-
+	
 	movw    r14, field_R1 >> 4   		@ d += c * (R1 >> 4) + t1 (64x64 multiply+add)
 	umull	r1, r2, r3, r14       		@ tmp = c.lo * (R1 >> 4)
 	adds	r5, r5, r8	    		@ d.lo += t1
@@ -896,7 +896,7 @@ secp256k1_fe_sqr_inner:
 	mov	r5, r5, lsr #26     		@ d >>= 26
 	orr	r5, r5, r6, asl #6
 	mov     r6, r6, lsr #26
-
+	
 	movw    r14, field_R1 >> 4   		@ d += c * (R1 >> 4) + t1 (64x64 multiply+add)
 	umull	r1, r2, r3, r14       		@ tmp = c.lo * (R1 >> 4)
 	adds	r5, r5, r8	    		@ d.lo += t1
@@ -916,3 +916,4 @@ secp256k1_fe_sqr_inner:
 	add	sp, sp, #48
 	ldmfd	sp!, {r4, r5, r6, r7, r8, r9, r10, r11, pc}
 	.size	secp256k1_fe_sqr_inner, .-secp256k1_fe_sqr_inner
+

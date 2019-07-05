@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package discv5
 
 import (
@@ -11,21 +27,29 @@ import (
 	"testing/quick"
 	"time"
 
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/crypto"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/crypto"
 )
 
 func ExampleNewNode() {
 	id := MustHexID("1dd9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439")
 
+	// Complete nodes contain UDP and TCP endpoints:
 	n1 := NewNode(id, net.ParseIP("2001:db8:3c4d:15::abcd:ef12"), 52150, 30303)
 	fmt.Println("n1:", n1)
 	fmt.Println("n1.Incomplete() ->", n1.Incomplete())
 
+	// An incomplete node can be created by passing zero values
+	// for all parameters except id.
 	n2 := NewNode(id, nil, 0, 0)
 	fmt.Println("n2:", n2)
 	fmt.Println("n2.Incomplete() ->", n2.Incomplete())
 
+	// Output:
+	// n1: enode://1dd9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439@[2001:db8:3c4d:15::abcd:ef12]:30303?discport=52150
+	// n1.Incomplete() -> false
+	// n2: enode://1dd9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439
+	// n2.Incomplete() -> true
 }
 
 var parseNodeTests = []struct {
@@ -41,6 +65,7 @@ var parseNodeTests = []struct {
 		rawurl:    "enode://01010101@123.124.125.126:3",
 		wantError: `invalid node ID (wrong length, want 128 hex chars)`,
 	},
+	// Complete nodes with IP address.
 	{
 		rawurl:    "enode://1dd9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439@hostname:3",
 		wantError: `invalid IP address`,
@@ -89,7 +114,7 @@ var parseNodeTests = []struct {
 			52150,
 		),
 	},
-
+	// Incomplete nodes with no address.
 	{
 		rawurl: "1dd9d65c4552b5eb43d5ad55a2ee3f56c6cbc1c64a5c8d659f51fcd51bace24351232b8d7821617d2b29b54b81cdefb9b3e9c37d7fd5f63270bcc9e1a6f6a439",
 		wantResult: NewNode(
@@ -104,7 +129,7 @@ var parseNodeTests = []struct {
 			nil, 0, 0,
 		),
 	},
-
+	// Invalid URLs
 	{
 		rawurl:    "01010101",
 		wantError: `invalid node ID (wrong length, want 128 hex chars)`,
@@ -114,7 +139,7 @@ var parseNodeTests = []struct {
 		wantError: `invalid node ID (wrong length, want 128 hex chars)`,
 	},
 	{
-
+		// This test checks that errors from url.Parse are handled.
 		rawurl:    "://foo",
 		wantError: `parse ://foo: missing protocol scheme`,
 	},
@@ -215,6 +240,7 @@ func TestNodeID_distcmp(t *testing.T) {
 	}
 }
 
+// the random tests is likely to miss the case where they're equal.
 func TestNodeID_distcmpEqual(t *testing.T) {
 	base := common.Hash{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
 	x := common.Hash{15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}
@@ -233,6 +259,7 @@ func TestNodeID_logdist(t *testing.T) {
 	}
 }
 
+// the random tests is likely to miss the case where they're equal.
 func TestNodeID_logdistEqual(t *testing.T) {
 	x := common.Hash{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
 	if logdist(x, x) != 0 {
@@ -241,7 +268,8 @@ func TestNodeID_logdistEqual(t *testing.T) {
 }
 
 func TestNodeID_hashAtDistance(t *testing.T) {
-
+	// we don't use quick.Check here because its output isn't
+	// very helpful when the test fails.
 	cfg := quickcfg()
 	for i := 0; i < cfg.MaxCount; i++ {
 		a := gen(common.Hash{}, cfg.Rand).(common.Hash)
@@ -263,6 +291,9 @@ func quickcfg() *quick.Config {
 		Rand:     rand.New(rand.NewSource(time.Now().Unix())),
 	}
 }
+
+// TODO: The Generate method can be dropped when we require Go >= 1.5
+// because testing/quick learned to generate arrays in 1.5.
 
 func (NodeID) Generate(rand *rand.Rand, size int) reflect.Value {
 	var id NodeID

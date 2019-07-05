@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package math
 
 import (
@@ -19,13 +35,15 @@ func TestOverflow(t *testing.T) {
 		overflow bool
 		op       operation
 	}{
-
+		// add operations
 		{MaxUint64, 1, true, add},
 		{MaxUint64 - 1, 1, false, add},
 
+		// sub operations
 		{0, 1, true, sub},
 		{0, 0, false, sub},
 
+		// mul operations
 		{0, 0, false, mul},
 		{10, 10, false, mul},
 		{MaxUint64, 2, true, mul},
@@ -59,14 +77,14 @@ func TestHexOrDecimal64(t *testing.T) {
 		{"12345678", 12345678, true},
 		{"0x12345678", 0x12345678, true},
 		{"0X12345678", 0x12345678, true},
-
-		{"0123456789", 123456789, true},
+		// Tests for leading zero behaviour:
+		{"0123456789", 123456789, true}, // note: not octal
 		{"0x00", 0, true},
 		{"0x012345678abc", 0x12345678abc, true},
-
+		// Invalid syntax:
 		{"abcdef", 0, false},
 		{"0xgg", 0, false},
-
+		// Doesn't fit into 64 bits:
 		{"18446744073709551617", 0, false},
 	}
 	for _, test := range tests {

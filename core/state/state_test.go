@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package state
 
 import (
@@ -5,9 +21,9 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/Aurorachain/go-Aurora/aoadb"
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/crypto"
+	"github.com/Aurorachain/go-aoa/aoadb"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/crypto"
 	checker "gopkg.in/check.v1"
 )
 
@@ -21,7 +37,7 @@ var _ = checker.Suite(&StateSuite{})
 var toAddr = common.BytesToAddress
 
 func (s *StateSuite) TestDump(c *checker.C) {
-
+	// generate a few entries
 	obj1 := s.state.GetOrNewStateObject(toAddr([]byte{0x01}))
 	obj1.AddBalance(big.NewInt(22))
 	obj2 := s.state.GetOrNewStateObject(toAddr([]byte{0x01, 0x02}))
@@ -29,10 +45,12 @@ func (s *StateSuite) TestDump(c *checker.C) {
 	obj3 := s.state.GetOrNewStateObject(toAddr([]byte{0x02}))
 	obj3.SetBalance(big.NewInt(44))
 
+	// write some of them to the trie
 	s.state.updateStateObject(obj1)
 	s.state.updateStateObject(obj2)
 	s.state.CommitTo(s.db, false)
 
+	// check that dump contains the state objects that are in trie
 	got := string(s.state.Dump())
 	want := `{
     "root": "71edff0130dd2385947095001c73d9e28d862fc286fca2b922ca6f6f3cddfdd2",
@@ -76,7 +94,7 @@ func (s *StateSuite) SetUpTest(c *checker.C) {
 func (s *StateSuite) TestNull(c *checker.C) {
 	address := common.HexToAddress("0x823140710bf13990e4500136726d8b55")
 	s.state.CreateAccount(address)
-
+	//value := common.FromHex("0x823140710bf13990e4500136726d8b55")
 	var value common.Hash
 	s.state.SetState(address, common.Hash{}, value)
 	s.state.CommitTo(s.db, false)
@@ -92,14 +110,17 @@ func (s *StateSuite) TestSnapshot(c *checker.C) {
 	data1 := common.BytesToHash([]byte{42})
 	data2 := common.BytesToHash([]byte{43})
 
+	// set initial state object value
 	s.state.SetState(stateobjaddr, storageaddr, data1)
-
+	// get snapshot of current state
 	snapshot := s.state.Snapshot()
 
+	// set new state object value
 	s.state.SetState(stateobjaddr, storageaddr, data2)
-
+	// restore snapshot
 	s.state.RevertToSnapshot(snapshot)
 
+	// get state storage value
 	res := s.state.GetState(stateobjaddr, storageaddr)
 
 	c.Assert(data1, checker.DeepEquals, res)
@@ -109,6 +130,8 @@ func (s *StateSuite) TestSnapshotEmpty(c *checker.C) {
 	s.state.RevertToSnapshot(s.state.Snapshot())
 }
 
+// use testing instead of checker because checker does not support
+// printing/logging in tests (-check.vv does not work)
 func TestSnapshot2(t *testing.T) {
 	db, _ := aoadb.NewMemDatabase()
 	state, _ := New(common.Hash{}, NewDatabase(db))
@@ -123,6 +146,7 @@ func TestSnapshot2(t *testing.T) {
 	state.SetState(stateobjaddr0, storageaddr, data0)
 	state.SetState(stateobjaddr1, storageaddr, data1)
 
+	// db, trie are already non-empty values
 	so0 := state.getStateObject(stateobjaddr0)
 	so0.SetBalance(big.NewInt(42))
 	so0.SetNonce(43)
@@ -134,6 +158,7 @@ func TestSnapshot2(t *testing.T) {
 	root, _ := state.CommitTo(db, false)
 	state.Reset(root)
 
+	// and one with deleted == true
 	so1 := state.getStateObject(stateobjaddr1)
 	so1.SetBalance(big.NewInt(52))
 	so1.SetNonce(53)
@@ -151,12 +176,13 @@ func TestSnapshot2(t *testing.T) {
 	state.RevertToSnapshot(snapshot)
 
 	so0Restored := state.getStateObject(stateobjaddr0)
-
+	// Update lazily-loaded values before comparing.
 	so0Restored.GetState(state.db, storageaddr)
 	so0Restored.Code(state.db)
-
+	// non-deleted is equal (restored)
 	compareStateObjects(so0Restored, so0, t)
 
+	// deleted should be nil, both before and after restore of state copy
 	so1Restored := state.getStateObject(stateobjaddr1)
 	if so1Restored != nil {
 		t.Fatalf("deleted object not nil after restoring snapshot: %+v", so1Restored)

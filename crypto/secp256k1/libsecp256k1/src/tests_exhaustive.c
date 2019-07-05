@@ -1,7 +1,7 @@
 /***********************************************************************
  * Copyright (c) 2016 Andrew Poelstra                                 *
  * Distributed under the MIT software license, see the accompanying   *
- * file COPYING or http:
+ * file COPYING or http://www.opensource.org/licenses/mit-license.php.*
  **********************************************************************/
 
 #if defined HAVE_CONFIG_H
@@ -467,3 +467,4 @@ int main(void) {
     secp256k1_context_destroy(ctx);
     return 0;
 }
+

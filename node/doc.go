@@ -1,9 +1,26 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
 
-/*package node sets up multi-protocol Aurora nodes.
+/*
+Package node sets up multi-protocol Aurora nodes.
 
 In the model exposed by this package, a node is a collection of services which use shared
 resources to provide RPC APIs. Services can also offer devp2p protocols, which are wired
 up to the devp2p network when the node instance is started.
+
 
 Resources Managed By Node
 
@@ -29,6 +46,7 @@ without a data directory, databases are opened in memory instead.
 Node also creates the shared store of encrypted Aurora account keys. Services can access
 the account manager through the service context.
 
+
 Sharing Data Directory Among Instances
 
 Multiple node instances can share a single data directory if they have distinct instance
@@ -46,6 +64,7 @@ create one database for each instance.
 
 The account key store is shared among all node instances using the same data directory
 unless its location is changed through the KeyStoreDir configuration option.
+
 
 Data Directory Sharing Example
 
@@ -67,4 +86,5 @@ directory. Mode instance A opens the database "db", node instance B opens the da
             db-2/              -- LevelDB content for "db-2"
         B.ipc                  -- JSON-RPC UNIX domain socket endpoint of instance A
         keystore/              -- account key store, used by both instances
-*/package node
+*/
+package node

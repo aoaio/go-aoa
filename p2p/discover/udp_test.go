@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package discover
 
 import (
@@ -17,9 +33,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/crypto"
-	"github.com/Aurorachain/go-Aurora/rlp"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/crypto"
+	"github.com/Aurorachain/go-aoa/rlp"
 	"github.com/davecgh/go-spew/spew"
 )
 
@@ -27,6 +43,7 @@ func init() {
 	spew.Config.DisableMethods = true
 }
 
+// shared test variables
 var (
 	futureExp          = uint64(time.Now().Add(10 * time.Hour).Unix())
 	testTarget         = NodeID{0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1}
@@ -58,6 +75,7 @@ func newUDPTest(t *testing.T) *udpTest {
 	return test
 }
 
+// handles a packet as if it had been sent to the transport.
 func (test *udpTest) packetIn(wantError error, ptype byte, data packet) error {
 	enc, err := encodePacket(test.remotekey, ptype, data)
 	if err != nil {
@@ -70,6 +88,8 @@ func (test *udpTest) packetIn(wantError error, ptype byte, data packet) error {
 	return nil
 }
 
+// waits for a packet to be sent by the transport.
+// validate should have type func(*udpTest, X) error, where X is a packet type.
 func (test *udpTest) waitPacketOut(validate interface{}) error {
 	dgram := test.pipe.waitPacketOut()
 	p, _, _, err := decodePacket(dgram)
@@ -86,7 +106,7 @@ func (test *udpTest) waitPacketOut(validate interface{}) error {
 }
 
 func (test *udpTest) errorf(format string, args ...interface{}) error {
-	_, file, line, ok := runtime.Caller(2) 
+	_, file, line, ok := runtime.Caller(2) // errorf + waitPacketOut
 	if ok {
 		file = filepath.Base(file)
 	} else {
@@ -133,12 +153,15 @@ func TestUDP_responseTimeouts(t *testing.T) {
 
 	var (
 		nReqs      = 200
-		nTimeouts  = 0                       
-		nilErr     = make(chan error, nReqs) 
-		timeoutErr = make(chan error, nReqs) 
+		nTimeouts  = 0                       // number of requests with ptype > 128
+		nilErr     = make(chan error, nReqs) // for requests that get a reply
+		timeoutErr = make(chan error, nReqs) // for requests that time out
 	)
 	for i := 0; i < nReqs; i++ {
-
+		// Create a matcher for a random request in udp.loop. Requests
+		// with ptype <= 128 will not get a reply and should time out.
+		// For all other requests, a reply is scheduled to arrive
+		// within the timeout window.
 		p := &pending{
 			ptype:    byte(rand.Intn(255)),
 			callback: func(interface{}) bool { return true },
@@ -160,6 +183,8 @@ func TestUDP_responseTimeouts(t *testing.T) {
 		time.Sleep(randomDuration(30 * time.Millisecond))
 	}
 
+	// Check that all timeouts were delivered and that the rest got nil errors.
+	// The replies must be delivered.
 	var (
 		recvDeadline        = time.After(20 * time.Second)
 		nTimeoutsRecv, nNil = 0, 0
@@ -209,6 +234,9 @@ func TestUDP_findnode(t *testing.T) {
 	test := newUDPTest(t)
 	defer test.table.Close()
 
+	// put a few nodes into the table. their exact
+	// distribution shouldn't matter much, although we need to
+	// take care not to overflow any bucket.
 	targetHash := crypto.Keccak256Hash(testTarget[:])
 	nodes := &nodesByDistance{target: targetHash}
 	for i := 0; i < bucketSize; i++ {
@@ -216,13 +244,15 @@ func TestUDP_findnode(t *testing.T) {
 	}
 	test.table.stuff(nodes.entries, CommNet)
 
+	// ensure there's a bond with the test node,
+	// findnode won't be accepted otherwise.
 	test.table.db.updateNode(NewNode(
 		PubkeyID(&test.remotekey.PublicKey),
 		test.remoteaddr.IP,
 		uint16(test.remoteaddr.Port),
 		99,
 	))
-
+	// check that closest neighbors are returned.
 	test.packetIn(nil, findnodePacket, &findnode{Target: testTarget, Expiration: futureExp, NetType: CommNet})
 	expected := test.table.closest(targetHash, bucketSize, CommNet)
 
@@ -246,6 +276,7 @@ func TestUDP_findnodeMultiReply(t *testing.T) {
 	test := newUDPTest(t)
 	defer test.table.Close()
 
+	// queue a pending findnode request
 	resultc, errc := make(chan []*Node), make(chan error)
 	go func() {
 		rid := PubkeyID(&test.remotekey.PublicKey)
@@ -257,12 +288,15 @@ func TestUDP_findnodeMultiReply(t *testing.T) {
 		}
 	}()
 
+	// wait for the findnode to be sent.
+	// after it is sent, the transport is waiting for a reply
 	test.waitPacketOut(func(p *findnode) {
 		if p.Target != testTarget {
 			t.Errorf("wrong target: got %v, want %v", p.Target, testTarget)
 		}
 	})
 
+	// send the reply as two packets.
 	list := []*Node{
 		MustParseNode("enode://ba85011c70bcc5c04d8607d3a0ed29aa6179c092cbdda10d5d32684fb33ed01bd94f588ca8f91ac48318087dcb02eaf36773a7a453f0eedd6742af668097b29c@10.0.1.16:30303?discport=30304"),
 		MustParseNode("enode://81fa361d25f157cd421c60dcc28d8dac5ef6a89476633339c5df30287474520caca09627da18543d9079b5b288698b542d56167aa5c09111e55acdbbdf2ef799@10.0.1.16:30303"),
@@ -276,6 +310,7 @@ func TestUDP_findnodeMultiReply(t *testing.T) {
 	test.packetIn(nil, neighborsPacket, &neighbors{Expiration: futureExp, Nodes: rpclist[:2]})
 	test.packetIn(nil, neighborsPacket, &neighbors{Expiration: futureExp, Nodes: rpclist[2:]})
 
+	// check that the sent neighbors are all returned by findnode
 	select {
 	case result := <-resultc:
 		want := append(list[:2], list[3:]...)
@@ -295,17 +330,19 @@ func TestUDP_successfulPing(t *testing.T) {
 	test.table.nodeAddedHook = func(n *Node) { added <- n }
 	defer test.table.Close()
 
+	// The remote side sends a ping packet to initiate the exchange.
 	go test.packetIn(nil, pingPacket, &ping{From: testRemote, To: testLocalAnnounced, Version: Version, Expiration: futureExp})
 
+	// the ping is replied to.
 	test.waitPacketOut(func(p *pong) {
 		pinghash := test.sent[0][:macSize]
 		if !bytes.Equal(p.ReplyTok, pinghash) {
 			t.Errorf("got pong.ReplyTok %x, want %x", p.ReplyTok, pinghash)
 		}
 		wantTo := rpcEndpoint{
-
+			// The mirrored UDP address is the UDP packet sender
 			IP: test.remoteaddr.IP, UDP: uint16(test.remoteaddr.Port),
-
+			// The mirrored TCP port is the one from the ping packet
 			TCP: testRemote.TCP,
 		}
 		if !reflect.DeepEqual(p.To, wantTo) {
@@ -313,12 +350,13 @@ func TestUDP_successfulPing(t *testing.T) {
 		}
 	})
 
+	// remote is unknown, the table pings back.
 	test.waitPacketOut(func(p *ping) error {
 		if !reflect.DeepEqual(p.From, test.udp.ourEndpoint) {
 			t.Errorf("got ping.From %v, want %v", p.From, test.udp.ourEndpoint)
 		}
 		wantTo := rpcEndpoint{
-
+			// The mirrored UDP address is the UDP packet sender.
 			IP: test.remoteaddr.IP, UDP: uint16(test.remoteaddr.Port),
 			TCP: 0,
 		}
@@ -329,6 +367,8 @@ func TestUDP_successfulPing(t *testing.T) {
 	})
 	test.packetIn(nil, pongPacket, &pong{Expiration: futureExp})
 
+	// the node should be added to the table shortly after getting the
+	// pong packet.
 	select {
 	case n := <-added:
 		rid := PubkeyID(&test.remotekey.PublicKey)
@@ -462,6 +502,7 @@ func TestForwardCompatibility(t *testing.T) {
 	}
 }
 
+// dgramPipe is a fake UDP socket. It queues all sent datagrams.
 type dgramPipe struct {
 	mu      *sync.Mutex
 	cond    *sync.Cond
@@ -479,6 +520,7 @@ func newpipe() *dgramPipe {
 	}
 }
 
+// WriteToUDP queues a datagram.
 func (c *dgramPipe) WriteToUDP(b []byte, to *net.UDPAddr) (n int, err error) {
 	msg := make([]byte, len(b))
 	copy(msg, b)
@@ -492,6 +534,7 @@ func (c *dgramPipe) WriteToUDP(b []byte, to *net.UDPAddr) (n int, err error) {
 	return len(b), nil
 }
 
+// ReadFromUDP just hangs until the pipe is closed.
 func (c *dgramPipe) ReadFromUDP(b []byte) (n int, addr *net.UDPAddr, err error) {
 	<-c.closing
 	return 0, nil, io.EOF

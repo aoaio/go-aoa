@@ -1,3 +1,20 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of go-aurora.
+//
+// go-aurora is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// go-aurora is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with go-aurora. If not, see <http://www.gnu.org/licenses/>.
+
+// Package utils contains internal helper functions for go-aurora commands.
 package utils
 
 import (
@@ -9,22 +26,26 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/Aurorachain/go-Aurora/core"
-	"github.com/Aurorachain/go-Aurora/core/types"
-	"github.com/Aurorachain/go-Aurora/internal/debug"
-	"github.com/Aurorachain/go-Aurora/log"
-	"github.com/Aurorachain/go-Aurora/node"
-	"github.com/Aurorachain/go-Aurora/rlp"
+	"github.com/Aurorachain/go-aoa/core"
+	"github.com/Aurorachain/go-aoa/core/types"
+	"github.com/Aurorachain/go-aoa/internal/debug"
+	"github.com/Aurorachain/go-aoa/log"
+	"github.com/Aurorachain/go-aoa/node"
+	"github.com/Aurorachain/go-aoa/rlp"
 )
 
 const (
 	importBatchSize = 2500
 )
 
+// Fatalf formats a message to standard error and exits the program.
+// The message is also printed to standard output if standard error
+// is redirected to a different file.
 func Fatalf(format string, args ...interface{}) {
 	w := io.MultiWriter(os.Stdout, os.Stderr)
 	if runtime.GOOS == "windows" {
-
+		// The SameFile check below doesn't work on Windows.
+		// stdout is unlikely to get redirected though, so just print there.
 		w = os.Stdout
 	} else {
 		outf, _ := os.Stdout.Stat()
@@ -54,13 +75,14 @@ func StartNode(stack *node.Node) {
 				log.Warn("Already shutting down, interrupt more to panic.", "times", i-1)
 			}
 		}
-		debug.Exit()
+		debug.Exit() // ensure trace and CPU profile data is flushed.
 		debug.LoudPanic("boom")
 	}()
 }
 
 func ImportChain(chain *core.BlockChain, fn string) error {
-
+	// Watch for Ctrl-C while the import is running.
+	// If a signal is received, the import will stop at the next batch.
 	interrupt := make(chan os.Signal, 1)
 	stop := make(chan struct{})
 	signal.Notify(interrupt, os.Interrupt)
@@ -81,7 +103,7 @@ func ImportChain(chain *core.BlockChain, fn string) error {
 		}
 	}
 
-	log.Info("Importing blockchain", "file", fn)
+	log.Infof("Importing blockchain, file=%v", fn)
 	fh, err := os.Open(fn)
 	if err != nil {
 		return err
@@ -97,10 +119,11 @@ func ImportChain(chain *core.BlockChain, fn string) error {
 
 	stream := rlp.NewStream(reader, 0)
 
+	// Run actual the import.
 	blocks := make(types.Blocks, importBatchSize)
 	n := 0
 	for batch := 0; ; batch++ {
-
+		// Load a batch of RLP blocks.
 		if checkInterrupt() {
 			return fmt.Errorf("interrupted")
 		}
@@ -112,7 +135,7 @@ func ImportChain(chain *core.BlockChain, fn string) error {
 			} else if err != nil {
 				return fmt.Errorf("at block %d: %v", n, err)
 			}
-
+			// don't import first block
 			if b.NumberU64() == 0 {
 				i--
 				continue
@@ -123,12 +146,12 @@ func ImportChain(chain *core.BlockChain, fn string) error {
 		if i == 0 {
 			break
 		}
-
+		// Import the batch.
 		if checkInterrupt() {
 			return fmt.Errorf("interrupted")
 		}
 		if hasAllBlocks(chain, blocks[:i]) {
-			log.Info("Skipping batch as all blocks present", "batch", batch, "first", blocks[0].Hash(), "last", blocks[i-1].Hash())
+			log.Infof("Skipping batch as all blocks present, batch=%v, first=%v, last=%v", batch, blocks[0].Hash(), blocks[i-1].Hash())
 			continue
 		}
 
@@ -149,7 +172,7 @@ func hasAllBlocks(chain *core.BlockChain, bs []*types.Block) bool {
 }
 
 func ExportChain(blockchain *core.BlockChain, fn string) error {
-	log.Info("Exporting blockchain", "file", fn)
+	log.Infof("Exporting blockchain, file=%v", fn)
 	fh, err := os.OpenFile(fn, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		return err
@@ -165,13 +188,13 @@ func ExportChain(blockchain *core.BlockChain, fn string) error {
 	if err := blockchain.Export(writer); err != nil {
 		return err
 	}
-	log.Info("Exported blockchain", "file", fn)
+	log.Infof("Exported blockchain, file=%v", fn)
 
 	return nil
 }
 
 func ExportAppendChain(blockchain *core.BlockChain, fn string, first uint64, last uint64) error {
-	log.Info("Exporting blockchain", "file", fn)
+	log.Infof("Exporting blockchain, file=%v", fn)
 	fh, err := os.OpenFile(fn, os.O_CREATE|os.O_APPEND|os.O_WRONLY, os.ModePerm)
 	if err != nil {
 		return err
@@ -187,6 +210,6 @@ func ExportAppendChain(blockchain *core.BlockChain, fn string, first uint64, las
 	if err := blockchain.ExportN(writer, first, last); err != nil {
 		return err
 	}
-	log.Info("Exported blockchain to", "file", fn)
+	log.Infof("Exported blockchain to, file=%v", fn)
 	return nil
 }

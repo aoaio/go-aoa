@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package p2p
 
 import (
@@ -11,18 +27,29 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Aurorachain/go-Aurora/event"
-	"github.com/Aurorachain/go-Aurora/p2p/discover"
-	"github.com/Aurorachain/go-Aurora/rlp"
+	"github.com/Aurorachain/go-aoa/event"
+	"github.com/Aurorachain/go-aoa/p2p/discover"
+	"github.com/Aurorachain/go-aoa/rlp"
 )
 
+// Msg defines the structure of a p2p message.
+//
+// Note that a Msg can only be sent once since the Payload reader is
+// consumed during sending. It is not possible to create a Msg and
+// send it any number of times. If you want to reuse an encoded
+// structure, encode the payload into a byte array and create a
+// separate Msg with a bytes.Reader as Payload for each send.
 type Msg struct {
 	Code       uint64
-	Size       uint32 
+	Size       uint32 // size of the paylod
 	Payload    io.Reader
 	ReceivedAt time.Time
 }
 
+// Decode parses the RLP content of a message into
+// the given value, which must be a pointer.
+//
+// For the decoding rules, please see package rlp.
 func (msg Msg) Decode(val interface{}) error {
 	s := rlp.NewStream(msg.Payload, uint64(msg.Size))
 	if err := s.Decode(val); err != nil {
@@ -35,6 +62,7 @@ func (msg Msg) String() string {
 	return fmt.Sprintf("msg #%v (%v bytes)", msg.Code, msg.Size)
 }
 
+// Discard reads any remaining payload data into a black hole.
 func (msg Msg) Discard() error {
 	_, err := io.Copy(ioutil.Discard, msg.Payload)
 	return err
@@ -45,15 +73,24 @@ type MsgReader interface {
 }
 
 type MsgWriter interface {
-
+	// WriteMsg sends a message. It will block until the message's
+	// Payload has been consumed by the other end.
+	//
+	// Note that messages can be sent only once because their
+	// payload reader is drained.
 	WriteMsg(Msg) error
 }
 
+// MsgReadWriter provides reading and writing of encoded messages.
+// Implementations should ensure that ReadMsg and WriteMsg can be
+// called simultaneously from multiple goroutines.
 type MsgReadWriter interface {
 	MsgReader
 	MsgWriter
 }
 
+// Send writes an RLP-encoded message with the given code.
+// data should encode as an RLP list.
 func Send(w MsgWriter, msgcode uint64, data interface{}) error {
 	size, r, err := rlp.EncodeToReader(data)
 	if err != nil {
@@ -62,10 +99,21 @@ func Send(w MsgWriter, msgcode uint64, data interface{}) error {
 	return w.WriteMsg(Msg{Code: msgcode, Size: uint32(size), Payload: r})
 }
 
+// SendItems writes an RLP with the given code and data elements.
+// For a call such as:
+//
+//    SendItems(w, code, e1, e2, e3)
+//
+// the message payload will be an RLP list containing the items:
+//
+//    [e1, e2, e3]
+//
 func SendItems(w MsgWriter, msgcode uint64, elems ...interface{}) error {
 	return Send(w, msgcode, elems)
 }
 
+// netWrapper wraps a MsgReadWriter with locks around
+// ReadMsg/WriteMsg and applies read/write deadlines.
 type netWrapper struct {
 	rmu, wmu sync.Mutex
 
@@ -88,12 +136,17 @@ func (rw *netWrapper) WriteMsg(msg Msg) error {
 	return rw.wrapped.WriteMsg(msg)
 }
 
+// eofSignal wraps a reader with eof signaling. the eof channel is
+// closed when the wrapped reader returns an error or when count bytes
+// have been read.
 type eofSignal struct {
 	wrapped io.Reader
-	count   uint32 
+	count   uint32 // number of bytes left
 	eof     chan<- struct{}
 }
 
+// note: when using eofSignal to detect whether a message payload
+// has been read, Read might not be called for zero sized messages.
 func (r *eofSignal) Read(buf []byte) (int, error) {
 	if r.count == 0 {
 		if r.eof != nil {
@@ -110,12 +163,15 @@ func (r *eofSignal) Read(buf []byte) (int, error) {
 	n, err := r.wrapped.Read(buf[:max])
 	r.count -= uint32(n)
 	if (err != nil || r.count == 0) && r.eof != nil {
-		r.eof <- struct{}{} 
+		r.eof <- struct{}{} // tell Peer that msg has been consumed
 		r.eof = nil
 	}
 	return n, err
 }
 
+// MsgPipe creates a message pipe. Reads on one end are matched
+// with writes on the other. The pipe is full-duplex, both ends
+// implement MsgReadWriter.
 func MsgPipe() (*MsgPipeRW, *MsgPipeRW) {
 	var (
 		c1, c2  = make(chan Msg), make(chan Msg)
@@ -127,8 +183,11 @@ func MsgPipe() (*MsgPipeRW, *MsgPipeRW) {
 	return rw1, rw2
 }
 
+// ErrPipeClosed is returned from pipe operations after the
+// pipe has been closed.
 var ErrPipeClosed = errors.New("p2p: read or write on closed message pipe")
 
+// MsgPipeRW is an endpoint of a MsgReadWriter pipe.
 type MsgPipeRW struct {
 	w       chan<- Msg
 	r       <-chan Msg
@@ -136,6 +195,8 @@ type MsgPipeRW struct {
 	closed  *int32
 }
 
+// WriteMsg sends a messsage on the pipe.
+// It blocks until the receiver has consumed the message payload.
 func (p *MsgPipeRW) WriteMsg(msg Msg) error {
 	if atomic.LoadInt32(p.closed) == 0 {
 		consumed := make(chan struct{}, 1)
@@ -143,7 +204,7 @@ func (p *MsgPipeRW) WriteMsg(msg Msg) error {
 		select {
 		case p.w <- msg:
 			if msg.Size > 0 {
-
+				// wait for payload read or discard
 				select {
 				case <-consumed:
 				case <-p.closing:
@@ -156,6 +217,7 @@ func (p *MsgPipeRW) WriteMsg(msg Msg) error {
 	return ErrPipeClosed
 }
 
+// ReadMsg returns a message sent on the other end of the pipe.
 func (p *MsgPipeRW) ReadMsg() (Msg, error) {
 	if atomic.LoadInt32(p.closed) == 0 {
 		select {
@@ -167,16 +229,22 @@ func (p *MsgPipeRW) ReadMsg() (Msg, error) {
 	return Msg{}, ErrPipeClosed
 }
 
+// Close unblocks any pending ReadMsg and WriteMsg calls on both ends
+// of the pipe. They will return ErrPipeClosed. Close also
+// interrupts any reads from a message payload.
 func (p *MsgPipeRW) Close() error {
 	if atomic.AddInt32(p.closed, 1) != 1 {
-
-		atomic.StoreInt32(p.closed, 1) 
+		// someone else is already closing
+		atomic.StoreInt32(p.closed, 1) // avoid overflow
 		return nil
 	}
 	close(p.closing)
 	return nil
 }
 
+// ExpectMsg reads a message from r and verifies that its
+// code and encoded RLP content match the provided values.
+// If content is nil, the payload is discarded and not verified.
 func ExpectMsg(r MsgReader, code uint64, content interface{}) error {
 	msg, err := r.ReadMsg()
 	if err != nil {
@@ -206,6 +274,8 @@ func ExpectMsg(r MsgReader, code uint64, content interface{}) error {
 	return nil
 }
 
+// msgEventer wraps a MsgReadWriter and sends events whenever a message is sent
+// or received
 type msgEventer struct {
 	MsgReadWriter
 
@@ -214,6 +284,8 @@ type msgEventer struct {
 	Protocol string
 }
 
+// newMsgEventer returns a msgEventer which sends message events to the given
+// feed
 func newMsgEventer(rw MsgReadWriter, feed *event.Feed, peerID discover.NodeID, proto string) *msgEventer {
 	return &msgEventer{
 		MsgReadWriter: rw,
@@ -223,6 +295,8 @@ func newMsgEventer(rw MsgReadWriter, feed *event.Feed, peerID discover.NodeID, p
 	}
 }
 
+// ReadMsg reads a message from the underlying MsgReadWriter and emits a
+// "message received" event
 func (self *msgEventer) ReadMsg() (Msg, error) {
 	msg, err := self.MsgReadWriter.ReadMsg()
 	if err != nil {
@@ -238,6 +312,8 @@ func (self *msgEventer) ReadMsg() (Msg, error) {
 	return msg, nil
 }
 
+// WriteMsg writes a message to the underlying MsgReadWriter and emits a
+// "message sent" event
 func (self *msgEventer) WriteMsg(msg Msg) error {
 	err := self.MsgReadWriter.WriteMsg(msg)
 	if err != nil {
@@ -253,6 +329,8 @@ func (self *msgEventer) WriteMsg(msg Msg) error {
 	return nil
 }
 
+// Close closes the underlying MsgReadWriter if it implements the io.Closer
+// interface
 func (self *msgEventer) Close() error {
 	if v, ok := self.MsgReadWriter.(io.Closer); ok {
 		return v.Close()

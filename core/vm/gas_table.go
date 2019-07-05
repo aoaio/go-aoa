@@ -1,17 +1,41 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package vm
 
 import (
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/common/math"
-	"github.com/Aurorachain/go-Aurora/params"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/common/math"
+	"github.com/Aurorachain/go-aoa/params"
 )
 
+// memoryGasCosts calculates the quadratic gas for memory expansion. It does so
+// only for the memory region that is expanded, not the total memory.
 func memoryGasCost(mem *Memory, newMemSize uint64) (uint64, error) {
 
 	if newMemSize == 0 {
 		return 0, nil
 	}
-
+	// The maximum that will fit in a uint64 is max_word_count - 1
+	// anything above that will result in an overflow.
+	// Additionally, a newMemSize which results in a
+	// newMemSizeWords larger than 0x7ffffffff will cause the square operation
+	// to overflow.
+	// The constant 0xffffffffe0 is the highest number that can be used without
+	// overflowing the gas calculation
 	if newMemSize > 0xffffffffe0 {
 		return 0, errGasUintOverflow
 	}
@@ -96,16 +120,19 @@ func gasSStore(gt params.GasTable, evm *EVM, contract *Contract, stack *Stack, m
 		y, x = stack.Back(1), stack.Back(0)
 		val  = evm.StateDB.GetState(contract.Address(), common.BigToHash(x))
 	)
-
+	// This checks for 3 scenario's and calculates gas accordingly
+	// 1. From a zero-value address to a non-zero value         (NEW VALUE)
+	// 2. From a non-zero value address to a zero-value address (DELETE)
+	// 3. From a non-zero to a non-zero                         (CHANGE)
 	if common.EmptyHash(val) && !common.EmptyHash(common.BigToHash(y)) {
-
+		// 0 => non 0
 		return params.SstoreSetGas, nil
 	} else if !common.EmptyHash(val) && common.EmptyHash(common.BigToHash(y)) {
 		evm.StateDB.AddRefund(params.SstoreRefundGas)
 
 		return params.SstoreClearGas, nil
 	} else {
-
+		// non 0 => non 0 (or 0 => 0)
 		return params.SstoreResetGas, nil
 	}
 }
@@ -278,7 +305,7 @@ func gasExp(gt params.GasTable, evm *EVM, contract *Contract, stack *Stack, mem 
 	expByteLen := uint64((stack.data[stack.len()-2].BitLen() + 7) / 8)
 
 	var (
-		gas      = expByteLen * gt.ExpByte 
+		gas      = expByteLen * gt.ExpByte // no overflow check required. Max is 256 * ExpByte gas
 		overflow bool
 	)
 	if gas, overflow = math.SafeAdd(gas, GasSlowStep); overflow {
@@ -292,13 +319,19 @@ func gasCall(gt params.GasTable, evm *EVM, contract *Contract, stack *Stack, mem
 		gas            = gt.Calls
 		transfersValue = stack.Back(2).Sign() != 0
 		address        = common.BigToAddress(stack.Back(1))
-
+		// eip158         = evm.ChainConfig().IsEIP158(evm.BlockNumber)
 	)
 
 	if !evm.StateDB.Exist(address) {
 		gas += params.CallNewAccountGas
 	}
-
+	//if false {
+	//	if transfersValue && evm.StateDB.Empty(address) {
+	//		gas += params.CallNewAccountGas
+	//	}
+	//} else if !evm.StateDB.Exist(address) {
+	//	gas += params.CallNewAccountGas
+	//}
 	if transfersValue {
 		gas += params.CallValueTransferGas
 	}
@@ -355,6 +388,16 @@ func gasRevert(gt params.GasTable, evm *EVM, contract *Contract, stack *Stack, m
 
 func gasSuicide(gt params.GasTable, evm *EVM, contract *Contract, stack *Stack, mem *Memory, memorySize uint64) (uint64, error) {
 	var gas uint64
+	// EIP150 homestead gas reprice fork:
+	//if evm.ChainConfig().IsEIP150(evm.BlockNumber) {
+	//	gas = gt.Suicide
+	//	var (
+	//		address = common.BigToAddress(stack.Back(0))
+	//	)
+	//	if !evm.StateDB.Exist(address) {
+	//		gas += gt.CreateBySuicide
+	//	}
+	//}
 
 	if !evm.StateDB.HasSuicided(contract.Address()) {
 		evm.StateDB.AddRefund(params.SuicideRefundGas)

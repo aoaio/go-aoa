@@ -1,7 +1,7 @@
 /**********************************************************************
  * Copyright (c) 2014 Pieter Wuille                                   *
  * Distributed under the MIT software license, see the accompanying   *
- * file COPYING or http:
+ * file COPYING or http://www.opensource.org/licenses/mit-license.php.*
  **********************************************************************/
 
 #ifndef _SECP256K1_HASH_IMPL_H_
@@ -200,6 +200,7 @@ static void secp256k1_hmac_sha256_finalize(secp256k1_hmac_sha256_t *hash, unsign
     memset(temp, 0, 32);
     secp256k1_sha256_finalize(&hash->outer, out32);
 }
+
 
 static void secp256k1_rfc6979_hmac_sha256_initialize(secp256k1_rfc6979_hmac_sha256_t *rng, const unsigned char *key, size_t keylen) {
     secp256k1_hmac_sha256_t hmac;

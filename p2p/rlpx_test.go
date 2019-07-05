@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package p2p
 
 import (
@@ -14,16 +30,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Aurorachain/go-Aurora/crypto"
-	"github.com/Aurorachain/go-Aurora/crypto/ecies"
-	"github.com/Aurorachain/go-Aurora/crypto/sha3"
-	"github.com/Aurorachain/go-Aurora/p2p/discover"
-	"github.com/Aurorachain/go-Aurora/rlp"
+	"github.com/Aurorachain/go-aoa/crypto"
+	"github.com/Aurorachain/go-aoa/crypto/ecies"
+	"github.com/Aurorachain/go-aoa/crypto/sha3"
+	"github.com/Aurorachain/go-aoa/p2p/discover"
+	"github.com/Aurorachain/go-aoa/rlp"
 	"github.com/davecgh/go-spew/spew"
 )
 
 func TestSharedSecret(t *testing.T) {
-	prv0, _ := crypto.GenerateKey()
+	prv0, _ := crypto.GenerateKey() // = ecdsa.GenerateKey(crypto.S256(), rand.Reader)
 	pub0 := &prv0.PublicKey
 	prv1, _ := crypto.GenerateKey()
 	pub1 := &prv1.PublicKey
@@ -105,6 +121,7 @@ func testEncHandshake(token []byte) error {
 		}
 	}()
 
+	// wait for results from both sides
 	r1, r2 := <-output, <-output
 	if r1.err != nil {
 		return fmt.Errorf("%s side error: %v", r1.side, r1.err)
@@ -113,6 +130,7 @@ func testEncHandshake(token []byte) error {
 		return fmt.Errorf("%s side error: %v", r2.side, r2.err)
 	}
 
+	// compare derived secrets
 	if !reflect.DeepEqual(c0.rw.egressMAC, c1.rw.ingressMAC) {
 		return fmt.Errorf("egress mac mismatch:\n c0.rw: %#v\n c1.rw: %#v", c0.rw.egressMAC, c1.rw.ingressMAC)
 	}
@@ -262,6 +280,7 @@ ba628a4ba590cb43f7848f41c4382885
 01010101010101010101010101010101
 `)
 
+	// Check WriteMsg. This puts a message into the buffer.
 	if err := Send(rw, 8, []uint{1, 2, 3, 4}); err != nil {
 		t.Fatalf("WriteMsg error: %v", err)
 	}
@@ -270,6 +289,8 @@ ba628a4ba590cb43f7848f41c4382885
 		t.Fatalf("output mismatch:\n  got:  %x\n  want: %x", written, golden)
 	}
 
+	// Check ReadMsg. It reads the message encoded by WriteMsg, which
+	// is equivalent to the golden message above.
 	msg, err := rw.ReadMsg()
 	if err != nil {
 		t.Fatalf("ReadMsg error: %v", err)
@@ -328,14 +349,16 @@ func TestRLPXFrameRW(t *testing.T) {
 	s2.IngressMAC.Write(egressMACinit)
 	rw2 := newRLPXFrameRW(conn, s2)
 
+	// send some messages
 	for i := 0; i < 10; i++ {
-
+		// write message into conn buffer
 		wmsg := []interface{}{"foo", "bar", strings.Repeat("test", i)}
 		err := Send(rw1, uint64(i), wmsg)
 		if err != nil {
 			t.Fatalf("WriteMsg error (i=%d): %v", i, err)
 		}
 
+		// read message that rw1 just wrote
 		msg, err := rw2.ReadMsg()
 		if err != nil {
 			t.Fatalf("ReadMsg error (i=%d): %v", i, err)
@@ -359,7 +382,7 @@ type handshakeAuthTest struct {
 }
 
 var eip8HandshakeAuthTests = []handshakeAuthTest{
-
+	// (Auth₁) RLPx v4 plain encoding
 	{
 		input: `
 			048ca79ad18e4b0659fab4853fe5bc58eb83992980f4c9cc147d2aa31532efd29a3d3dc6a3d89eaf
@@ -374,7 +397,7 @@ var eip8HandshakeAuthTests = []handshakeAuthTest{
 		isPlain:     true,
 		wantVersion: 4,
 	},
-
+	// (Auth₂) EIP-8 encoding
 	{
 		input: `
 			01b304ab7578555167be8154d5cc456f567d5ba302662433674222360f08d5f1534499d3678b513b
@@ -392,7 +415,7 @@ var eip8HandshakeAuthTests = []handshakeAuthTest{
 		wantVersion: 4,
 		wantRest:    []rlp.RawValue{},
 	},
-
+	// (Auth₃) RLPx v4 EIP-8 encoding with version 56, additional list elements
 	{
 		input: `
 			01b8044c6c312173685d1edd268aa95e1d495474c6959bcdd10067ba4c9013df9e40ff45f5bfd6f7
@@ -420,7 +443,7 @@ type handshakeAckTest struct {
 }
 
 var eip8HandshakeRespTests = []handshakeAckTest{
-
+	// (Ack₁) RLPx v4 plain encoding
 	{
 		input: `
 			049f8abcfa9c0dc65b982e98af921bc0ba6e4243169348a236abe9df5f93aa69d99cadddaa387662
@@ -432,7 +455,7 @@ var eip8HandshakeRespTests = []handshakeAckTest{
 		`,
 		wantVersion: 4,
 	},
-
+	// (Ack₂) EIP-8 encoding
 	{
 		input: `
 			01ea0451958701280a56482929d3b0757da8f7fbe5286784beead59d95089c217c9b917788989470
@@ -452,7 +475,7 @@ var eip8HandshakeRespTests = []handshakeAckTest{
 		wantVersion: 4,
 		wantRest:    []rlp.RawValue{},
 	},
-
+	// (Ack₃) EIP-8 encoding with version 57, additional list elements
 	{
 		input: `
 			01f004076e58aae772bb101ab1a8e64e01ee96e64857ce82b1113817c6cdd52c09d26f7b90981cd7
@@ -504,6 +527,7 @@ func TestHandshakeForwardCompatibility(t *testing.T) {
 		return msg
 	}
 
+	// check auth msg parsing
 	for _, test := range eip8HandshakeAuthTests {
 		r := bytes.NewReader(unhex(test.input))
 		msg := new(authMsgV4)
@@ -521,6 +545,7 @@ func TestHandshakeForwardCompatibility(t *testing.T) {
 		}
 	}
 
+	// check auth resp parsing
 	for _, test := range eip8HandshakeRespTests {
 		input := unhex(test.input)
 		r := bytes.NewReader(input)
@@ -539,6 +564,7 @@ func TestHandshakeForwardCompatibility(t *testing.T) {
 		}
 	}
 
+	// check derivation for (Auth₂, Ack₂) on recipient side
 	var (
 		hs = &encHandshake{
 			initiator:     false,

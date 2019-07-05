@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package rpc
 
 import (
@@ -31,6 +47,7 @@ type httpConn struct {
 	closed    chan struct{}
 }
 
+// httpConn is treated specially by Client.
 func (hc *httpConn) LocalAddr() net.Addr              { return nullAddr }
 func (hc *httpConn) RemoteAddr() net.Addr             { return nullAddr }
 func (hc *httpConn) SetReadDeadline(time.Time) error  { return nil }
@@ -48,6 +65,8 @@ func (hc *httpConn) Close() error {
 	return nil
 }
 
+// DialHTTPWithClient creates a new RPC client that connects to an RPC server over HTTP
+// using the provided HTTP Client.
 func DialHTTPWithClient(endpoint string, client *http.Client) (*Client, error) {
 	req, err := http.NewRequest(http.MethodPost, endpoint, nil)
 	if err != nil {
@@ -62,6 +81,7 @@ func DialHTTPWithClient(endpoint string, client *http.Client) (*Client, error) {
 	})
 }
 
+// DialHTTP creates a new RPC client that connects to an RPC server over HTTP.
 func DialHTTP(endpoint string) (*Client, error) {
 	return DialHTTPWithClient(endpoint, new(http.Client))
 }
@@ -114,21 +134,27 @@ func (hc *httpConn) doRequest(ctx context.Context, msg interface{}) (io.ReadClos
 	return resp.Body, nil
 }
 
+// httpReadWriteNopCloser wraps a io.Reader and io.Writer with a NOP Close method.
 type httpReadWriteNopCloser struct {
 	io.Reader
 	io.Writer
 }
 
+// Close does nothing and returns always nil
 func (t *httpReadWriteNopCloser) Close() error {
 	return nil
 }
 
+// NewHTTPServer creates a new HTTP RPC server around an API provider.
+//
+// Deprecated: Server implements http.Handler
 func NewHTTPServer(cors []string, srv *Server) *http.Server {
 	return &http.Server{Handler: newCorsHandler(srv, cors)}
 }
 
+// ServeHTTP serves JSON-RPC requests over HTTP.
 func (srv *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-
+	// Permit dumb empty requests for remote health-checks (AWS)
 	if r.Method == http.MethodGet && r.ContentLength == 0 && r.URL.RawQuery == "" {
 		return
 	}
@@ -136,15 +162,18 @@ func (srv *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), code)
 		return
 	}
-
+	// All checks passed, create a codec that reads direct from the request body
+	// untilEOF and writes the response to w and order the server to process a
+	// single request.
 	codec := NewJSONCodec(&httpReadWriteNopCloser{r.Body, w})
-
 	defer codec.Close()
 
 	w.Header().Set("content-type", contentType)
 	srv.ServeSingleRequest(codec, OptionMethodInvocation)
 }
 
+// validateRequest returns a non-zero response code and error message if the
+// request is invalid.
 func validateRequest(r *http.Request) (int, error) {
 	if r.Method == http.MethodPut || r.Method == http.MethodDelete {
 		return http.StatusMethodNotAllowed, errors.New("method not allowed")
@@ -162,7 +191,7 @@ func validateRequest(r *http.Request) (int, error) {
 }
 
 func newCorsHandler(srv *Server, allowedOrigins []string) http.Handler {
-
+	// disable CORS support if user has not specified a custom CORS configuration
 	if len(allowedOrigins) == 0 {
 		return srv
 	}

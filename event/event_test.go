@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package event
 
 import (
@@ -10,7 +26,7 @@ import (
 type testEvent int
 
 func TestSubCloseUnsub(t *testing.T) {
-
+	// the point of this test is **not** to panic
 	var mux TypeMux
 	mux.Stop()
 	sub := mux.Subscribe(int(0))
@@ -113,6 +129,7 @@ func TestMuxConcurrent(t *testing.T) {
 		go sub(i)
 	}
 
+	// wait until everyone has been served
 	counts := make(map[int]int, nsubs)
 	for i := 0; i < nsubs; i++ {
 		counts[<-recv]++
@@ -151,6 +168,7 @@ func BenchmarkPost1000(b *testing.B) {
 	}
 	subscribed.Wait()
 
+	// The actual benchmark.
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		mux.Post(testEvent(0))
@@ -182,6 +200,7 @@ func BenchmarkPostConcurrent(b *testing.B) {
 	wg.Wait()
 }
 
+// for comparison
 func BenchmarkChanSend(b *testing.B) {
 	c := make(chan interface{})
 	closed := make(chan struct{})

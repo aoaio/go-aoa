@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package ntp
 
 import (
@@ -9,9 +25,9 @@ import (
 )
 
 const (
-
+	//host  = "0.beevik-ntp.pool.ntp.org"
 	host  = "pool.ntp.org"
-	refID = 0x58585858
+	refID = 0x58585858 // 'XXXX'
 )
 
 func isNil(t *testing.T, err error) bool {
@@ -19,15 +35,15 @@ func isNil(t *testing.T, err error) bool {
 	case err == nil:
 		return true
 	case strings.Contains(err.Error(), "timeout"):
-
+		// log instead of error, so test isn't failed
 		t.Logf("[%s] Query timeout: %s", host, err)
 		return false
 	case strings.Contains(err.Error(), "kiss of death"):
-
+		// log instead of error, so test isn't failed
 		t.Logf("[%s] Query kiss of death: %s", host, err)
 		return false
 	default:
-
+		// error, so test fails
 		t.Errorf("[%s] Query failed: %s", host, err)
 		return false
 	}
@@ -50,18 +66,22 @@ func TestTime(t *testing.T) {
 	now := time.Now()
 	if isNil(t, err) {
 		t.Logf("Local Time %v\n", now)
-		t.Logf("~True Time %v\n", tm)
+		t.Logf("~True Time %v\n", tm) // ntp 时间
 		t.Logf("Offset %v\n", tm.Sub(now))
 	}
 }
 
 func TestTimeFailure(t *testing.T) {
-
+	// Use a link-local IP address that won't have an NTP server listening
+	// on it. This should return the local system's time.
 	local, err := Time("169.254.122.229")
 	assert.NotNil(t, err)
 
 	now := time.Now()
 
+	// When the NTP time query fails, it should return the system time.
+	// Compare the "now" system time with the returned time. It should be
+	// about the same.
 	diffMinutes := now.Sub(local).Minutes()
 	assert.True(t, diffMinutes > -1 && diffMinutes < 1)
 }
@@ -107,28 +127,33 @@ func TestValidate(t *testing.T) {
 	m.Stratum = 1
 	m.ReferenceID = refID
 	m.ReferenceTime = 1 << 32
-	m.Precision = -1
+	m.Precision = -1 // 500ms
 
+	// Zero RTT
 	m.OriginTime = 1 << 32
 	m.ReceiveTime = 1 << 32
 	m.TransmitTime = 1 << 32
 	r = parseTime(&m, 1<<32)
 	assertValid(t, r)
 
+	// Negative freshness
 	m.ReferenceTime = 2 << 32
 	r = parseTime(&m, 1<<32)
 	assertInvalid(t, r)
 
+	// Unfresh clock (48h)
 	m.OriginTime = 2 * 86400 << 32
 	m.ReceiveTime = 2 * 86400 << 32
 	m.TransmitTime = 2 * 86400 << 32
 	r = parseTime(&m, 2*86400<<32)
 	assertInvalid(t, r)
 
+	// Fresh clock (24h)
 	m.ReferenceTime = 1 * 86400 << 32
 	r = parseTime(&m, 2*86400<<32)
 	assertValid(t, r)
 
+	// Values indicating a negative RTT
 	m.RootDelay = 16 << 16
 	m.ReferenceTime = 1 << 32
 	m.OriginTime = 20 << 32
@@ -142,21 +167,21 @@ func TestValidate(t *testing.T) {
 }
 
 func TestBadServerPort(t *testing.T) {
-
+	// Not NTP port.
 	tm, _, err := getTime(host, QueryOptions{Port: 9})
 	assert.Nil(t, tm)
 	assert.NotNil(t, err)
 }
 
 func TestTTL(t *testing.T) {
-
+	// TTL of 1 should cause a timeout.
 	tm, _, err := getTime(host, QueryOptions{TTL: 1})
 	assert.Nil(t, tm)
 	assert.NotNil(t, err)
 }
 
 func TestQueryTimeout(t *testing.T) {
-
+	// Force an immediate timeout.
 	tm, err := QueryWithOptions(host, QueryOptions{Version: 4, Timeout: time.Nanosecond})
 	assert.Nil(t, tm)
 	assert.NotNil(t, err)
@@ -169,28 +194,28 @@ func TestShortConversion(t *testing.T) {
 	assert.Equal(t, 0*time.Nanosecond, ts.Duration())
 
 	ts = 0x00000001
-	assert.Equal(t, 15258*time.Nanosecond, ts.Duration())
+	assert.Equal(t, 15258*time.Nanosecond, ts.Duration()) // well, it's actually 15258.789, but it's good enough
 
 	ts = 0x00008000
-	assert.Equal(t, 500*time.Millisecond, ts.Duration())
+	assert.Equal(t, 500*time.Millisecond, ts.Duration()) // precise
 
 	ts = 0x0000c000
-	assert.Equal(t, 750*time.Millisecond, ts.Duration())
+	assert.Equal(t, 750*time.Millisecond, ts.Duration()) // precise
 
 	ts = 0x0000ff80
-	assert.Equal(t, time.Second-(1000000000/512)*time.Nanosecond, ts.Duration())
+	assert.Equal(t, time.Second-(1000000000/512)*time.Nanosecond, ts.Duration()) // last precise sub-second value
 
 	ts = 0x00010000
-	assert.Equal(t, 1000*time.Millisecond, ts.Duration())
+	assert.Equal(t, 1000*time.Millisecond, ts.Duration()) // precise
 
 	ts = 0x00018000
-	assert.Equal(t, 1500*time.Millisecond, ts.Duration())
+	assert.Equal(t, 1500*time.Millisecond, ts.Duration()) // precise
 
 	ts = 0xffff0000
-	assert.Equal(t, 65535*time.Second, ts.Duration())
+	assert.Equal(t, 65535*time.Second, ts.Duration()) // precise
 
 	ts = 0xffffff80
-	assert.Equal(t, 65536*time.Second-(1000000000/512)*time.Nanosecond, ts.Duration())
+	assert.Equal(t, 65536*time.Second-(1000000000/512)*time.Nanosecond, ts.Duration()) // last precise value
 }
 
 func TestLongConversion(t *testing.T) {
@@ -217,6 +242,10 @@ func TestOffsetCalculation(t *testing.T) {
 	t3 := toNtpTime(now.Add(21 * time.Second))
 	t4 := toNtpTime(now.Add(5 * time.Second))
 
+	// expectedOffset := ((T2 - T1) + (T3 - T4)) / 2
+	// ((119 - 99) + (121 - 104)) / 2
+	// (20 +  17) / 2
+	// 37 / 2 = 18
 	expectedOffset := 18 * time.Second
 	offset := offset(t1, t2, t3, t4)
 	assert.Equal(t, expectedOffset, offset)
@@ -229,6 +258,9 @@ func TestOffsetCalculationNegative(t *testing.T) {
 	t3 := toNtpTime(now.Add(103 * time.Second))
 	t4 := toNtpTime(now.Add(105 * time.Second))
 
+	// expectedOffset := ((T2 - T1) + (T3 - T4)) / 2
+	// ((102 - 101) + (103 - 105)) / 2
+	// (1 + -2) / 2 = -1 / 2
 	expectedOffset := -time.Second / 2
 	offset := offset(t1, t2, t3, t4)
 	assert.Equal(t, expectedOffset, offset)

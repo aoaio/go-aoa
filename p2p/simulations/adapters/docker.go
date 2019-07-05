@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package adapters
 
 import (
@@ -11,18 +27,30 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/Aurorachain/go-Aurora/log"
-	"github.com/Aurorachain/go-Aurora/node"
-	"github.com/Aurorachain/go-Aurora/p2p/discover"
+	"github.com/Aurorachain/go-aoa/log"
+	"github.com/Aurorachain/go-aoa/node"
+	"github.com/Aurorachain/go-aoa/p2p/discover"
 	"github.com/docker/docker/pkg/reexec"
 )
 
+// DockerAdapter is a NodeAdapter which runs simulation nodes inside Docker
+// containers.
+//
+// A Docker image is built which contains the current binary at /bin/p2p-node
+// which when executed runs the underlying service (see the description
+// of the execP2PNode function for more details)
 type DockerAdapter struct {
 	ExecAdapter
 }
 
+// NewDockerAdapter builds the p2p-node Docker image containing the current
+// binary and returns a DockerAdapter
 func NewDockerAdapter() (*DockerAdapter, error) {
-
+	// Since Docker containers run on Linux and this adapter runs the
+	// current binary in the container, it must be compiled for Linux.
+	//
+	// It is reasonable to require this because the caller can just
+	// compile the current binary in a Docker container.
 	if runtime.GOOS != "linux" {
 		return nil, errors.New("DockerAdapter can only be used on Linux as it uses the current binary (which must be a Linux binary)")
 	}
@@ -38,10 +66,12 @@ func NewDockerAdapter() (*DockerAdapter, error) {
 	}, nil
 }
 
+// Name returns the name of the adapter for logging purposes
 func (d *DockerAdapter) Name() string {
 	return "docker-adapter"
 }
 
+// NewNode returns a new DockerNode using the given config
 func (d *DockerAdapter) NewNode(config *NodeConfig) (Node, error) {
 	if len(config.Services) == 0 {
 		return nil, errors.New("node must have at least one service")
@@ -52,6 +82,7 @@ func (d *DockerAdapter) NewNode(config *NodeConfig) (Node, error) {
 		}
 	}
 
+	// generate the config
 	conf := &execNodeConfig{
 		Stack: node.DefaultConfig,
 		Node:  config,
@@ -78,10 +109,17 @@ func (d *DockerAdapter) NewNode(config *NodeConfig) (Node, error) {
 	return node, nil
 }
 
+// DockerNode wraps an ExecNode but exec's the current binary in a docker
+// container rather than locally
 type DockerNode struct {
 	ExecNode
 }
 
+// dockerCommand returns a command which exec's the binary in a Docker
+// container.
+//
+// It uses a shell so that we can pass the _P2P_NODE_CONFIG environment
+// variable to the container using the --env flag.
 func (n *DockerNode) dockerCommand() *exec.Cmd {
 	return exec.Command(
 		"sh", "-c",
@@ -92,16 +130,24 @@ func (n *DockerNode) dockerCommand() *exec.Cmd {
 	)
 }
 
+// dockerImage is the name of the Docker image which gets built to run the
+// simulation node
 const dockerImage = "p2p-node"
 
+// buildDockerImage builds the Docker image which is used to run the simulation
+// node in a Docker container.
+//
+// It adds the current binary as "p2p-node" so that it runs execP2PNode
+// when executed.
 func buildDockerImage() error {
-
+	// create a directory to use as the build context
 	dir, err := ioutil.TempDir("", "p2p-docker")
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(dir)
 
+	// copy the current binary into the build context
 	bin, err := os.Open(reexec.Self())
 	if err != nil {
 		return err
@@ -116,6 +162,7 @@ func buildDockerImage() error {
 		return err
 	}
 
+	// create the Dockerfile
 	dockerfile := []byte(`
 FROM ubuntu:16.04
 RUN mkdir /data
@@ -125,6 +172,7 @@ ADD self.bin /bin/p2p-node
 		return err
 	}
 
+	// run 'docker build'
 	cmd := exec.Command("docker", "build", "-t", dockerImage, dir)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

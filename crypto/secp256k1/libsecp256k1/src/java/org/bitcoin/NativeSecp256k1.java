@@ -6,7 +6,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http:
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.bitcoin;
 
 import java.nio.ByteBuffer;
@@ -28,7 +29,7 @@ import static org.bitcoin.NativeSecp256k1Util.*;
 /**
  * <p>This class holds native methods to handle ECDSA verification.</p>
  *
- * <p>You can find an example library that can be used for this at https:
+ * <p>You can find an example library that can be used for this at https://github.com/bitcoin/secp256k1</p>
  *
  * <p>To build secp256k1 for use with bitcoinj, run
  * `./configure --enable-jni --enable-experimental --enable-module-ecdh`
@@ -139,6 +140,7 @@ public class NativeSecp256k1 {
         }
     }
 
+
     /**
      * libsecp256k1 Compute Pubkey - computes public key from secret key
      *
@@ -147,7 +149,7 @@ public class NativeSecp256k1 {
      * Return values
      * @param pubkey ECDSA Public key, 33 or 65 bytes
      */
-
+    //TODO add a 'compressed' arg
     public static byte[] computePubkey(byte[] seckey) throws AssertFailException{
         Preconditions.checkArgument(seckey.length == 32);
 

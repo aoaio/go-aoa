@@ -1,0 +1,25 @@
+# Created by .ignore support plugin (hsz.mobi)
+### Go template
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, build with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+
+**/.git
+.git
+!.git/HEAD
+!.git/refs/heads
+**/*_test.go
+
+build/_workspace
+build/_bin
+tests/testdata

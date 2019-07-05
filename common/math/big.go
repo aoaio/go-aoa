@@ -1,3 +1,20 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
+// Package math provides integer math utilities.
 package math
 
 import (
@@ -15,14 +32,16 @@ var (
 )
 
 const (
-
+	// number of bits in a big.Word
 	wordBits = 32 << (uint64(^big.Word(0)) >> 63)
-
+	// number of bytes in a big.Word
 	wordBytes = wordBits / 8
 )
 
+// HexOrDecimal256 marshals big.Int as hex or decimal.
 type HexOrDecimal256 big.Int
 
+// UnmarshalText implements encoding.TextUnmarshaler.
 func (i *HexOrDecimal256) UnmarshalText(input []byte) error {
 	bigint, ok := ParseBig256(string(input))
 	if !ok {
@@ -32,6 +51,7 @@ func (i *HexOrDecimal256) UnmarshalText(input []byte) error {
 	return nil
 }
 
+// MarshalText implements encoding.TextMarshaler.
 func (i *HexOrDecimal256) MarshalText() ([]byte, error) {
 	if i == nil {
 		return []byte("0x0"), nil
@@ -39,6 +59,8 @@ func (i *HexOrDecimal256) MarshalText() ([]byte, error) {
 	return []byte(fmt.Sprintf("%#x", (*big.Int)(i))), nil
 }
 
+// ParseBig256 parses s as a 256 bit integer in decimal or hexadecimal syntax.
+// Leading zeros are accepted. The empty string parses as zero.
 func ParseBig256(s string) (*big.Int, bool) {
 	if s == "" {
 		return new(big.Int), true
@@ -56,6 +78,7 @@ func ParseBig256(s string) (*big.Int, bool) {
 	return bigint, ok
 }
 
+// MustParseBig parses s as a 256 bit big integer and panics if the string is invalid.
 func MustParseBig256(s string) *big.Int {
 	v, ok := ParseBig256(s)
 	if !ok {
@@ -64,11 +87,13 @@ func MustParseBig256(s string) *big.Int {
 	return v
 }
 
+// BigPow returns a ** b as a big integer.
 func BigPow(a, b int64) *big.Int {
 	r := big.NewInt(a)
 	return r.Exp(r, big.NewInt(b), nil)
 }
 
+// BigMax returns the larger of x or y.
 func BigMax(x, y *big.Int) *big.Int {
 	if x.Cmp(y) < 0 {
 		return y
@@ -76,6 +101,7 @@ func BigMax(x, y *big.Int) *big.Int {
 	return x
 }
 
+// BigMin returns the smaller of x or y.
 func BigMin(x, y *big.Int) *big.Int {
 	if x.Cmp(y) > 0 {
 		return y
@@ -83,6 +109,7 @@ func BigMin(x, y *big.Int) *big.Int {
 	return x
 }
 
+// FirstBitSet returns the index of the first 1 bit in v, counting from LSB.
 func FirstBitSet(v *big.Int) int {
 	for i := 0; i < v.BitLen(); i++ {
 		if v.Bit(i) > 0 {
@@ -92,6 +119,8 @@ func FirstBitSet(v *big.Int) int {
 	return v.BitLen()
 }
 
+// PaddedBigBytes encodes a big integer as a big-endian byte slice. The length
+// of the slice is at least n bytes.
 func PaddedBigBytes(bigint *big.Int, n int) []byte {
 	if bigint.BitLen()/8 >= n {
 		return bigint.Bytes()
@@ -101,20 +130,27 @@ func PaddedBigBytes(bigint *big.Int, n int) []byte {
 	return ret
 }
 
+// bigEndianByteAt returns the byte at position n,
+// in Big-Endian encoding
+// So n==0 returns the least significant byte
 func bigEndianByteAt(bigint *big.Int, n int) byte {
 	words := bigint.Bits()
-
+	// Check word-bucket the byte will reside in
 	i := n / wordBytes
 	if i >= len(words) {
 		return byte(0)
 	}
 	word := words[i]
-
+	// Offset of the byte
 	shift := 8 * uint(n%wordBytes)
 
 	return byte(word >> shift)
 }
 
+// Byte returns the byte at position n,
+// with the supplied padlength in Little-Endian encoding.
+// n==0 returns the MSB
+// Example: bigint '5', padlength 32, n=31 => 5
 func Byte(bigint *big.Int, padlength, n int) byte {
 	if n >= padlength {
 		return byte(0)
@@ -122,6 +158,8 @@ func Byte(bigint *big.Int, padlength, n int) byte {
 	return bigEndianByteAt(bigint, padlength-1-n)
 }
 
+// ReadBits encodes the absolute value of bigint as big-endian bytes. Callers must ensure
+// that buf has enough space. If buf is too short the result will be incomplete.
 func ReadBits(bigint *big.Int, buf []byte) {
 	i := len(buf)
 	for _, d := range bigint.Bits() {
@@ -133,10 +171,18 @@ func ReadBits(bigint *big.Int, buf []byte) {
 	}
 }
 
+// U256 encodes as a 256 bit two's complement number. This operation is destructive.
 func U256(x *big.Int) *big.Int {
 	return x.And(x, tt256m1)
 }
 
+// S256 interprets x as a two's complement number.
+// x must not exceed 256 bits (the result is undefined if it does) and is not modified.
+//
+//   S256(0)        = 0
+//   S256(1)        = 1
+//   S256(2**255)   = -2**255
+//   S256(2**256-1) = -1
 func S256(x *big.Int) *big.Int {
 	if x.Cmp(tt255) < 0 {
 		return x
@@ -145,6 +191,11 @@ func S256(x *big.Int) *big.Int {
 	}
 }
 
+// Exp implements exponentiation by squaring.
+// Exp returns a newly-allocated big integer and does not change
+// base or exponent. The result is truncated to 256 bits.
+//
+// Courtesy @karalabe and @chfast
 func Exp(base, exponent *big.Int) *big.Int {
 	result := big.NewInt(1)
 

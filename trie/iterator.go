@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package trie
 
 import (
@@ -5,9 +21,10 @@ import (
 	"container/heap"
 	"errors"
 
-	"github.com/Aurorachain/go-Aurora/common"
+	"github.com/Aurorachain/go-aoa/common"
 )
 
+// Iterator is a key-value trie iterator that traverses a Trie.
 type Iterator struct {
 	nodeIt NodeIterator
 
@@ -16,12 +33,14 @@ type Iterator struct {
 	Err   error
 }
 
+// NewIterator creates a new key-value iterator from a node iterator
 func NewIterator(it NodeIterator) *Iterator {
 	return &Iterator{
 		nodeIt: it,
 	}
 }
 
+// Next moves the iterator forward one key-value entry.
 func (it *Iterator) Next() bool {
 	for it.nodeIt.Next(true) {
 		if it.nodeIt.Leaf() {
@@ -36,17 +55,35 @@ func (it *Iterator) Next() bool {
 	return false
 }
 
+// NodeIterator is an iterator to traverse the trie pre-order.
 type NodeIterator interface {
+	// Next moves the iterator to the next node. If the parameter is false, any child
+	// nodes will be skipped.
 	Next(bool) bool
+	// Error returns the error status of the iterator.
 	Error() error
+
+	// Hash returns the hash of the current node.
 	Hash() common.Hash
+	// Parent returns the hash of the parent of the current node. The hash may be the one
+	// grandparent if the immediate parent is an internal node with no hash.
 	Parent() common.Hash
+	// Path returns the hex-encoded path to the current node.
+	// Callers must not retain references to the return value after calling Next.
+	// For leaf nodes, the last element of the path is the 'terminator symbol' 0x10.
 	Path() []byte
+
+	// Leaf returns true iff the current node is a leaf node.
+	// LeafBlob, LeafKey return the contents and key of the leaf node. These
+	// method panic if the iterator is not positioned at a leaf.
+	// Callers must not retain references to their return value after calling Next
 	Leaf() bool
 	LeafBlob() []byte
 	LeafKey() []byte
 }
 
+// nodeIteratorState represents the iteration state at one particular node of the
+// trie, which can be resumed at a later invocation.
 type nodeIteratorState struct {
 	hash    common.Hash // Hash of the node being iterated (nil if not standalone)
 	node    node        // Trie node being iterated
@@ -62,8 +99,10 @@ type nodeIterator struct {
 	err   error                // Failure set in case of an internal error in the iterator
 }
 
+// iteratorEnd is stored in nodeIterator.err when iteration is done.
 var iteratorEnd = errors.New("end of iteration")
 
+// seekError is stored in nodeIterator.err if the initial seek has failed.
 type seekError struct {
 	key []byte
 	err error
@@ -132,6 +171,10 @@ func (it *nodeIterator) Error() error {
 	return it.err
 }
 
+// Next moves the iterator to the next node, returning whether there are any
+// further nodes. In case of an internal error this method returns false and
+// sets the Error field to the encountered failure. If `descend` is false,
+// skips iterating over any subnodes of the current node.
 func (it *nodeIterator) Next(descend bool) bool {
 	if it.err == iteratorEnd {
 		return false
@@ -141,6 +184,7 @@ func (it *nodeIterator) Next(descend bool) bool {
 			return false
 		}
 	}
+	// Otherwise step forward with the iterator and report any errors.
 	state, parentIndex, path, err := it.peek(descend)
 	it.err = err
 	if it.err != nil {
@@ -151,8 +195,10 @@ func (it *nodeIterator) Next(descend bool) bool {
 }
 
 func (it *nodeIterator) seek(prefix []byte) error {
+	// The path we're looking for is the hex encoded key without terminator.
 	key := keybytesToHex(prefix)
 	key = key[:len(key)-1]
+	// Move forward until we're just before the closest match to key.
 	for {
 		state, parentIndex, path, err := it.peek(bytes.HasPrefix(key, it.path))
 		if err == iteratorEnd {
@@ -166,8 +212,10 @@ func (it *nodeIterator) seek(prefix []byte) error {
 	}
 }
 
+// peek creates the next state of the iterator.
 func (it *nodeIterator) peek(descend bool) (*nodeIteratorState, *int, []byte, error) {
 	if len(it.stack) == 0 {
+		// Initialize the iterator if we've just started.
 		root := it.trie.Hash()
 		state := &nodeIteratorState{node: it.trie.root, index: -1}
 		if root != emptyRoot {
@@ -177,9 +225,11 @@ func (it *nodeIterator) peek(descend bool) (*nodeIteratorState, *int, []byte, er
 		return state, nil, nil, err
 	}
 	if !descend {
+		// If we're skipping children, pop the current node first
 		it.pop()
 	}
 
+	// Continue iteration to the next child
 	for len(it.stack) > 0 {
 		parent := it.stack[len(it.stack)-1]
 		ancestor := parent.hash
@@ -193,6 +243,7 @@ func (it *nodeIterator) peek(descend bool) (*nodeIteratorState, *int, []byte, er
 			}
 			return state, &parent.index, path, nil
 		}
+		// No more child nodes, move back up.
 		it.pop()
 	}
 	return nil, nil, nil, iteratorEnd
@@ -213,6 +264,7 @@ func (st *nodeIteratorState) resolve(tr *Trie, path []byte) error {
 func (it *nodeIterator) nextChild(parent *nodeIteratorState, ancestor common.Hash) (*nodeIteratorState, []byte, bool) {
 	switch node := parent.node.(type) {
 	case *fullNode:
+		// Full node, move to the first non-nil child.
 		for i := parent.index + 1; i < len(node.Children); i++ {
 			child := node.Children[i]
 			if child != nil {
@@ -230,6 +282,7 @@ func (it *nodeIterator) nextChild(parent *nodeIteratorState, ancestor common.Has
 			}
 		}
 	case *shortNode:
+		// Short node, return the pointer singleton child
 		if parent.index < 0 {
 			hash, _ := node.Val.cache()
 			state := &nodeIteratorState{
@@ -284,6 +337,9 @@ type differenceIterator struct {
 	count int          // Number of nodes scanned on either trie
 }
 
+// NewDifferenceIterator constructs a NodeIterator that iterates over elements in b that
+// are not in a. Returns the iterator, and a pointer to an integer recording the number
+// of nodes seen.
 func NewDifferenceIterator(a, b NodeIterator) (NodeIterator, *int) {
 	a.Next(true)
 	it := &differenceIterator{
@@ -318,26 +374,33 @@ func (it *differenceIterator) Path() []byte {
 }
 
 func (it *differenceIterator) Next(bool) bool {
+	// Invariants:
+	// - We always advance at least one element in b.
+	// - At the start of this function, a's path is lexically greater than b's.
 	if !it.b.Next(true) {
 		return false
 	}
 	it.count += 1
 
 	if it.eof {
+		// a has reached eof, so we just return all elements from b
 		return true
 	}
 
 	for {
 		switch compareNodes(it.a, it.b) {
 		case -1:
+			// b jumped past a; advance a
 			if !it.a.Next(true) {
 				it.eof = true
 				return true
 			}
 			it.count += 1
 		case 1:
+			// b is before a
 			return true
 		case 0:
+			// a and b are identical; skip this whole subtree if the nodes have hashes
 			hasHash := it.a.Hash() == common.Hash{}
 			if !it.b.Next(hasHash) {
 				return false
@@ -377,6 +440,9 @@ type unionIterator struct {
 	count int               // Number of nodes scanned across all tries
 }
 
+// NewUnionIterator constructs a NodeIterator that iterates over elements in the union
+// of the provided NodeIterators. Returns the iterator, and a pointer to an integer
+// recording the number of nodes visited.
 func NewUnionIterator(iters []NodeIterator) (NodeIterator, *int) {
 	h := make(nodeIteratorHeap, len(iters))
 	copy(h, iters)
@@ -410,17 +476,36 @@ func (it *unionIterator) Path() []byte {
 	return (*it.items)[0].Path()
 }
 
+// Next returns the next node in the union of tries being iterated over.
+//
+// It does this by maintaining a heap of iterators, sorted by the iteration
+// order of their next elements, with one entry for each source trie. Each
+// time Next() is called, it takes the least element from the heap to return,
+// advancing any other iterators that also point to that same element. These
+// iterators are called with descend=false, since we know that any nodes under
+// these nodes will also be duplicates, found in the currently selected iterator.
+// Whenever an iterator is advanced, it is pushed back into the heap if it still
+// has elements remaining.
+//
+// In the case that descend=false - eg, we're asked to ignore all subnodes of the
+// current node - we also advance any iterators in the heap that have the current
+// path as a prefix.
 func (it *unionIterator) Next(descend bool) bool {
 	if len(*it.items) == 0 {
 		return false
 	}
 
+	// Get the next key from the union
 	least := heap.Pop(it.items).(NodeIterator)
 
+	// Skip over other nodes as long as they're identical, or, if we're not descending, as
+	// long as they have the same prefix as the current node.
 	for len(*it.items) > 0 && ((!descend && bytes.HasPrefix((*it.items)[0].Path(), least.Path())) || compareNodes(least, (*it.items)[0]) == 0) {
 		skipped := heap.Pop(it.items).(NodeIterator)
+		// Skip the whole subtree if the nodes have hashes; otherwise just skip this node
 		if skipped.Next(skipped.Hash() == common.Hash{}) {
 			it.count += 1
+			// If there are more elements, push the iterator back on the heap
 			heap.Push(it.items, skipped)
 		}
 	}

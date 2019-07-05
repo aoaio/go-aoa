@@ -1,4 +1,14 @@
+// Copyright 2014 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package sha3
+
+// Tests include all the ShortMsgKATs provided by the Keccak team at
+// https://github.com/gvanas/KeccakCodePackage
+//
+// They only include the zero-bit case of the bitwise testvectors
+// published by NIST in the draft of FIPS-202.
 
 import (
 	"bytes"
@@ -16,6 +26,7 @@ const (
 	katFilename = "testdata/keccakKats.json.deflate"
 )
 
+// Internal-use instances of SHAKE used to test against KATs.
 func newHashShake128() hash.Hash {
 	return &state{rate: 168, dsbyte: 0x1f, outputLen: 512}
 }
@@ -23,6 +34,9 @@ func newHashShake256() hash.Hash {
 	return &state{rate: 136, dsbyte: 0x1f, outputLen: 512}
 }
 
+// testDigests contains functions returning hash.Hash instances
+// with output-length equal to the KAT length for both SHA-3 and
+// SHAKE instances.
 var testDigests = map[string]func() hash.Hash{
 	"SHA3-224": New224,
 	"SHA3-256": New256,
@@ -32,11 +46,14 @@ var testDigests = map[string]func() hash.Hash{
 	"SHAKE256": newHashShake256,
 }
 
+// testShakes contains functions that return ShakeHash instances for
+// testing the ShakeHash-specific interface.
 var testShakes = map[string]func() ShakeHash{
 	"SHAKE128": NewShake128,
 	"SHAKE256": NewShake256,
 }
 
+// structs used to marshal JSON test-cases.
 type KeccakKats struct {
 	Kats map[string][]struct {
 		Digest  string `json:"digest"`
@@ -56,9 +73,12 @@ func testUnalignedAndGeneric(t *testing.T, testf func(impl string)) {
 	xorIn, copyOut = xorInOrig, copyOutOrig
 }
 
+// TestKeccakKats tests the SHA-3 and Shake implementations against all the
+// ShortMsgKATs from https://github.com/gvanas/KeccakCodePackage
+// (The testvectors are stored in keccakKats.json.deflate due to their length.)
 func TestKeccakKats(t *testing.T) {
 	testUnalignedAndGeneric(t, func(impl string) {
-
+		// Read the KATs.
 		deflated, err := os.Open(katFilename)
 		if err != nil {
 			t.Errorf("error opening %s: %s", katFilename, err)
@@ -71,6 +91,7 @@ func TestKeccakKats(t *testing.T) {
 			t.Errorf("error decoding KATs: %s", err)
 		}
 
+		// Do the KATs.
 		for functionName, kats := range katSet.Kats {
 			d := testDigests[functionName]()
 			for _, kat := range kats {
@@ -93,6 +114,8 @@ func TestKeccakKats(t *testing.T) {
 	})
 }
 
+// TestUnalignedWrite tests that writing data in an arbitrary pattern with
+// small input buffers.
 func TestUnalignedWrite(t *testing.T) {
 	testUnalignedAndGeneric(t, func(impl string) {
 		buf := sequentialBytes(0x10000)
@@ -103,7 +126,8 @@ func TestUnalignedWrite(t *testing.T) {
 			want := d.Sum(nil)
 			d.Reset()
 			for i := 0; i < len(buf); {
-
+				// Cycle through offsets which make a 137 byte sequence.
+				// Because 137 is prime this sequence should exercise all corner cases.
 				offsets := [17]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 1}
 				for _, j := range offsets {
 					if v := len(buf) - i; v < j {
@@ -121,12 +145,14 @@ func TestUnalignedWrite(t *testing.T) {
 	})
 }
 
+// TestAppend checks that appending works when reallocation is necessary.
 func TestAppend(t *testing.T) {
 	testUnalignedAndGeneric(t, func(impl string) {
 		d := New224()
 
 		for capacity := 2; capacity <= 66; capacity += 64 {
-
+			// The first time around the loop, Sum will have to reallocate.
+			// The second time, it will not.
 			buf := make([]byte, 2, capacity)
 			d.Reset()
 			d.Write([]byte{0xcc})
@@ -139,6 +165,7 @@ func TestAppend(t *testing.T) {
 	})
 }
 
+// TestAppendNoRealloc tests that appending works when no reallocation is necessary.
 func TestAppendNoRealloc(t *testing.T) {
 	testUnalignedAndGeneric(t, func(impl string) {
 		buf := make([]byte, 1, 200)
@@ -152,6 +179,8 @@ func TestAppendNoRealloc(t *testing.T) {
 	})
 }
 
+// TestSqueezing checks that squeezing the full output a single time produces
+// the same output as repeatedly squeezing the instance.
 func TestSqueezing(t *testing.T) {
 	testUnalignedAndGeneric(t, func(impl string) {
 		for functionName, newShakeHash := range testShakes {
@@ -175,6 +204,7 @@ func TestSqueezing(t *testing.T) {
 	})
 }
 
+// sequentialBytes produces a buffer of size consecutive bytes 0x00, 0x01, ..., used for testing.
 func sequentialBytes(size int) []byte {
 	result := make([]byte, size)
 	for i := range result {
@@ -183,6 +213,8 @@ func sequentialBytes(size int) []byte {
 	return result
 }
 
+// BenchmarkPermutationFunction measures the speed of the permutation function
+// with no input data.
 func BenchmarkPermutationFunction(b *testing.B) {
 	b.SetBytes(int64(200))
 	var lanes [25]uint64
@@ -191,6 +223,7 @@ func BenchmarkPermutationFunction(b *testing.B) {
 	}
 }
 
+// benchmarkHash tests the speed to hash num buffers of buflen each.
 func benchmarkHash(b *testing.B, h hash.Hash, size, num int) {
 	b.StopTimer()
 	h.Reset()
@@ -209,6 +242,8 @@ func benchmarkHash(b *testing.B, h hash.Hash, size, num int) {
 	h.Reset()
 }
 
+// benchmarkShake is specialized to the Shake instances, which don't
+// require a copy on reading output.
 func benchmarkShake(b *testing.B, h ShakeHash, size, num int) {
 	b.StopTimer()
 	h.Reset()
@@ -241,22 +276,22 @@ func BenchmarkSha3_512_1MiB(b *testing.B) { benchmarkHash(b, New512(), 1024, 102
 
 func Example_sum() {
 	buf := []byte("some data to hash")
-
+	// A hash needs to be 64 bytes long to have 256-bit collision resistance.
 	h := make([]byte, 64)
-
+	// Compute a 64-byte hash of buf and put it in h.
 	ShakeSum256(h, buf)
 }
 
 func Example_mac() {
 	k := []byte("this is a secret key; you should generate a strong random key that's at least 32 bytes long")
 	buf := []byte("and this is some data to authenticate")
-
+	// A MAC with 32 bytes of output has 256-bit security strength -- if you use at least a 32-byte-long key.
 	h := make([]byte, 32)
 	d := NewShake256()
-
+	// Write the key into the hash.
 	d.Write(k)
-
+	// Now write the data.
 	d.Write(buf)
-
+	// Read 32 bytes of output from the hash into h.
 	d.Read(h)
 }

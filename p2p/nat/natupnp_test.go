@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package nat
 
 import (
@@ -39,13 +55,13 @@ func TestUPNP_DDWRT(t *testing.T) {
 					 <device>
 						 <deviceType>urn:schemas-upnp-org:device:InternetGatewayDevice:1</deviceType>
 						 <manufacturer>DD-WRT</manufacturer>
-						 <manufacturerURL>http:
+						 <manufacturerURL>http://www.dd-wrt.com</manufacturerURL>
 						 <modelDescription>Gateway</modelDescription>
 						 <friendlyName>Asus RT-N16:DD-WRT</friendlyName>
 						 <modelName>Asus RT-N16</modelName>
 						 <modelNumber>V24</modelNumber>
 						 <serialNumber>0000001</serialNumber>
-						 <modelURL>http:
+						 <modelURL>http://www.dd-wrt.com</modelURL>
 						 <UDN>uuid:A13AB4C3-3A14-E386-DE6A-EFEA923A06FE</UDN>
 						 <serviceList>
 							 <service>
@@ -61,10 +77,10 @@ func TestUPNP_DDWRT(t *testing.T) {
 								 <deviceType>urn:schemas-upnp-org:device:WANDevice:1</deviceType>
 								 <friendlyName>WANDevice</friendlyName>
 								 <manufacturer>DD-WRT</manufacturer>
-								 <manufacturerURL>http:
+								 <manufacturerURL>http://www.dd-wrt.com</manufacturerURL>
 								 <modelDescription>Gateway</modelDescription>
 								 <modelName>router</modelName>
-								 <modelURL>http:
+								 <modelURL>http://www.dd-wrt.com</modelURL>
 								 <UDN>uuid:48FD569B-F9A9-96AE-4EE6-EB403D3DB91A</UDN>
 								 <serviceList>
 									 <service>
@@ -80,10 +96,10 @@ func TestUPNP_DDWRT(t *testing.T) {
 										 <deviceType>urn:schemas-upnp-org:device:WANConnectionDevice:1</deviceType>
 										 <friendlyName>WAN Connection Device</friendlyName>
 										 <manufacturer>DD-WRT</manufacturer>
-										 <manufacturerURL>http:
+										 <manufacturerURL>http://www.dd-wrt.com</manufacturerURL>
 										 <modelDescription>Gateway</modelDescription>
 										 <modelName>router</modelName>
-										 <modelURL>http:
+										 <modelURL>http://www.dd-wrt.com</modelURL>
 										 <UDN>uuid:CB2471CC-CF2E-9795-8D9C-E87B34C16800</UDN>
 										 <serviceList>
 											 <service>
@@ -101,10 +117,10 @@ func TestUPNP_DDWRT(t *testing.T) {
 								 <deviceType>urn:schemas-upnp-org:device:LANDevice:1</deviceType>
 								 <friendlyName>LANDevice</friendlyName>
 								 <manufacturer>DD-WRT</manufacturer>
-								 <manufacturerURL>http:
+								 <manufacturerURL>http://www.dd-wrt.com</manufacturerURL>
 								 <modelDescription>Gateway</modelDescription>
 								 <modelName>router</modelName>
-								 <modelURL>http:
+								 <modelURL>http://www.dd-wrt.com</modelURL>
 								 <UDN>uuid:04021998-3B35-2BDB-7B3C-99DA4435DA09</UDN>
 								 <serviceList>
 									 <service>
@@ -117,13 +133,16 @@ func TestUPNP_DDWRT(t *testing.T) {
 								 </serviceList>
 							 </device>
 						 </deviceList>
-						 <presentationURL>http:
+						 <presentationURL>http://{{listenAddr}}</presentationURL>
 					 </device>
 				 </root>
 			`,
-
+			// The response to our GetNATRSIPStatus call. This
+			// particular implementation has a bug where the elements
+			// inside u:GetNATRSIPStatusResponse are not properly
+			// namespaced.
 			"POST /control?WANIPConnection": `
-				 <s:Envelope xmlns:s="http:
+				 <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
 				 <s:Body>
 				 <u:GetNATRSIPStatusResponse xmlns:u="urn:schemas-upnp-org:service:WANIPConnection:1">
 				 <NewRSIPAvailable>0</NewRSIPAvailable>
@@ -140,6 +159,7 @@ func TestUPNP_DDWRT(t *testing.T) {
 	dev.serve()
 	defer dev.close()
 
+	// Attempt to discover the fake device.
 	discovered := discoverUPnP()
 	if discovered == nil {
 		t.Fatalf("not discovered")
@@ -154,17 +174,27 @@ func TestUPNP_DDWRT(t *testing.T) {
 	}
 }
 
+// fakeIGD presents itself as a discoverable UPnP device which sends
+// canned responses to HTTPU and HTTP requests.
 type fakeIGD struct {
-	t *testing.T
+	t *testing.T // for logging
 
 	listener      net.Listener
 	mcastListener *net.UDPConn
 
+	// This should be a complete HTTP response (including headers).
+	// It is sent as the response to any sspd packet. Any occurrence
+	// of "{{listenAddr}}" is replaced with the actual TCP listen
+	// address of the HTTP server.
 	ssdpResp string
-
+	// This one should contain XML payloads for all requests
+	// performed. The keys contain method and path, e.g. "GET /foo/bar".
+	// As with ssdpResp, "{{listenAddr}}" is replaced with the TCP
+	// listen address.
 	httpResps map[string]string
 }
 
+// httpu.Handler
 func (dev *fakeIGD) ServeMessage(r *http.Request) {
 	dev.t.Logf(`HTTPU request %s %s`, r.Method, r.RequestURI)
 	conn, err := net.Dial("udp4", r.RemoteAddr)
@@ -176,6 +206,7 @@ func (dev *fakeIGD) ServeMessage(r *http.Request) {
 	io.WriteString(conn, dev.replaceListenAddr(dev.ssdpResp))
 }
 
+// http.Handler
 func (dev *fakeIGD) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if resp, ok := dev.httpResps[r.Method+" "+r.RequestURI]; ok {
 		dev.t.Logf(`HTTP request "%s %s" --> %d`, r.Method, r.RequestURI, 200)

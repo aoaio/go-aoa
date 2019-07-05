@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package discv5
 
 import (
@@ -12,9 +28,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Aurorachain/go-Aurora/common"
+	"github.com/Aurorachain/go-aoa/common"
 )
 
+// In this test, nodes try to randomly resolve each other.
 func TestSimRandomResolve(t *testing.T) {
 	t.Skip("boring")
 	if runWithPlaygroundTime(t) {
@@ -24,6 +41,7 @@ func TestSimRandomResolve(t *testing.T) {
 	sim := newSimulation()
 	bootnode := sim.launchNode(false)
 
+	// A new node joins every 10s.
 	launcher := time.NewTicker(10 * time.Second)
 	go func() {
 		for range launcher.C {
@@ -66,13 +84,14 @@ func TestSimTopics(t *testing.T) {
 				stop := make(chan struct{})
 				go net.RegisterTopic(testTopic, stop)
 				go func() {
-
+					//time.Sleep(time.Second * 36000)
 					time.Sleep(time.Second * 40000)
 					close(stop)
 				}()
 				time.Sleep(time.Millisecond * 100)
 			}
-
+			//			time.Sleep(time.Second * 10)
+			//time.Sleep(time.Second)
 			/*if i%500 == 499 {
 				time.Sleep(time.Second * 9501)
 			} else {
@@ -81,6 +100,7 @@ func TestSimTopics(t *testing.T) {
 		}
 	}()
 
+	// A new node joins every 10s.
 	/*	launcher := time.NewTicker(5 * time.Second)
 		cnt := 0
 		var printNet *Network
@@ -88,7 +108,7 @@ func TestSimTopics(t *testing.T) {
 			for range launcher.C {
 				cnt++
 				if cnt <= 1000 {
-					log := false 
+					log := false //(cnt == 500)
 					net := sim.launchNode(log)
 					if log {
 						printNet = net
@@ -100,14 +120,15 @@ func TestSimTopics(t *testing.T) {
 						panic(err)
 					}
 				}
-
+				//fmt.Printf("launched @ %v: %x\n", time.Now(), net.Self().ID[:16])
 			}
 		}()
 	*/
 	time.Sleep(55000 * time.Second)
-
+	//launcher.Stop()
 	sim.shutdown()
-
+	//sim.printStats()
+	//printNet.log.printLogs()
 }
 
 /*func testHierarchicalTopics(i int) []Topic {
@@ -149,13 +170,13 @@ func TestSimTopicHierarchy(t *testing.T) {
 
 		stop := make(chan struct{})
 		for i, net := range nets {
-
+			//if i < 256 {
 			for _, topic := range testHierarchicalTopics(i)[:5] {
-
+				//fmt.Println("reg", topic)
 				go net.RegisterTopic(topic, stop)
 			}
 			time.Sleep(time.Millisecond * 100)
-
+			//}
 		}
 		time.Sleep(time.Second * 90000)
 		close(stop)
@@ -217,6 +238,14 @@ func (s *simulation) printStats() {
 	defer s.mu.Unlock()
 	fmt.Println("node counter:", s.nodectr)
 	fmt.Println("alive nodes:", len(s.nodes))
+
+	// for _, n := range s.nodes {
+	// 	fmt.Printf("%x\n", n.tab.self.ID[:8])
+	// 	transport := n.conn.(*simTransport)
+	// 	fmt.Println("   joined:", transport.joinTime)
+	// 	fmt.Println("   sends:", transport.hashctr)
+	// 	fmt.Println("   table size:", n.tab.count)
+	// }
 
 	/*for _, n := range s.nodes {
 		fmt.Println()
@@ -359,7 +388,7 @@ func (st *simTransport) sendFindnodeHash(remote *Node, target common.Hash) {
 }
 
 func (st *simTransport) sendTopicRegister(remote *Node, topics []Topic, idx int, pong []byte) {
-
+	//fmt.Println("send", topics, pong)
 	st.sendPacket(remote.ID, ingressPacket{
 		remoteID:   st.sender,
 		remoteAddr: st.senderAddr,
@@ -388,7 +417,7 @@ func (st *simTransport) sendTopicNodes(remote *Node, queryHash common.Hash, node
 }
 
 func (st *simTransport) sendNeighbours(remote *Node, nodes []*Node) {
-
+	// TODO: send multiple packets
 	rnodes := make([]rpcNode, len(nodes))
 	for i := range nodes {
 		rnodes[i] = nodeToRPC(nodes[i])
@@ -412,7 +441,7 @@ func (st *simTransport) nextHash() []byte {
 	return hash[:]
 }
 
-const packetLoss = 0 
+const packetLoss = 0 // 1/1000
 
 func (st *simTransport) sendPacket(remote NodeID, p ingressPacket) {
 	if rand.Int31n(1000) >= packetLoss {

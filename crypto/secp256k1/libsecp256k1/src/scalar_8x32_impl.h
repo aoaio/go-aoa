@@ -1,7 +1,7 @@
 /**********************************************************************
  * Copyright (c) 2014 Pieter Wuille                                   *
  * Distributed under the MIT software license, see the accompanying   *
- * file COPYING or http:
+ * file COPYING or http://www.opensource.org/licenses/mit-license.php.*
  **********************************************************************/
 
 #ifndef _SECP256K1_SCALAR_REPR_IMPL_H_
@@ -258,6 +258,7 @@ static int secp256k1_scalar_cond_negate(secp256k1_scalar *r, int flag) {
     r->d[7] = t & nonzero;
     return 2 * (mask == 0) - 1;
 }
+
 
 /* Inspired by the macros in OpenSSL's crypto/bn/asm/x86_64-gcc.c. */
 

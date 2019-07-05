@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package crypto
 
 import (
@@ -6,20 +22,23 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/crypto/secp256k1"
-	"github.com/Aurorachain/go-Aurora/crypto/sha3"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/crypto/secp256k1"
+	"github.com/Aurorachain/go-aoa/crypto/sha3"
 	"io/ioutil"
 	"math/big"
 	"os"
+	"strings"
 	"testing"
 	"time"
-	"strings"
 )
 
 var testAddrHex = "970e8128ab834e8eac17ab8e3812f010678cf791"
 var testPrivHex = "289c2857d4598e37fb9647507e47a309d6133539bf21a8b9cb6df88fd5232032"
 
+// These tests are sanity checks.
+// They should ensure that we don't e.g. use Sha3-224 instead of Sha3-256
+// and that the sha3 library uses keccak-f permutation.
 func TestKeccak256Hash(t *testing.T) {
 	msg := []byte("abc")
 	exp, _ := hex.DecodeString("4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45")
@@ -42,7 +61,7 @@ func BenchmarkSha3(b *testing.B) {
 	}
 }
 
-func TestPrivateKey(t *testing.T)  {
+func TestPrivateKey(t *testing.T) {
 	key, _ := HexToECDSA("47c130855c576651c871ecd6939dbf3bd277264b329e720d6f13e46a7f9b703b")
 	genAddr := PubkeyToAddress(key.PublicKey)
 	fmt.Println(genAddr.Hex())
@@ -68,6 +87,7 @@ func TestSign(t *testing.T) {
 		t.Errorf("Address mismatch: want: %x have: %x", addr, recoveredAddr)
 	}
 
+	// should be equal to SigToPub
 	recoveredPub2, err := SigToPub(msg, sig)
 	if err != nil {
 		t.Errorf("ECRecover error: %s", err)
@@ -91,7 +111,7 @@ func TestNewContractAddress(t *testing.T) {
 	key, _ := HexToECDSA(testPrivHex)
 	addr := common.HexToAddress(testAddrHex)
 	genAddr := PubkeyToAddress(key.PublicKey)
-
+	// sanity check before using addr to create contract address
 	checkAddr(t, genAddr, addr)
 
 	caddr0 := CreateAddress(addr, 0)
@@ -123,6 +143,7 @@ func TestLoadECDSAFile(t *testing.T) {
 	}
 	checkKey(key0)
 
+	// again, this time with SaveECDSA instead of manual save:
 	err = SaveECDSA(fileName1, key0)
 	if err != nil {
 		t.Fatal(err)
@@ -147,17 +168,20 @@ func TestValidateSignatureValues(t *testing.T) {
 	zero := common.Big0
 	secp256k1nMinus1 := new(big.Int).Sub(secp256k1_N, common.Big1)
 
+	// correct v,r,s
 	check(true, 0, one, one)
 	check(true, 1, one, one)
-
+	// incorrect v, correct r,s,
 	check(false, 2, one, one)
 	check(false, 3, one, one)
 
+	// incorrect v, combinations of incorrect/correct r,s at lower limit
 	check(false, 2, zero, zero)
 	check(false, 2, zero, one)
 	check(false, 2, one, zero)
 	check(false, 2, one, one)
 
+	// correct v for any combination of incorrect r,s
 	check(false, 0, zero, zero)
 	check(false, 0, zero, one)
 	check(false, 0, one, zero)
@@ -166,12 +190,15 @@ func TestValidateSignatureValues(t *testing.T) {
 	check(false, 1, zero, one)
 	check(false, 1, one, zero)
 
+	// correct sig with max r,s
 	check(true, 0, secp256k1nMinus1, secp256k1nMinus1)
-
+	// correct v, combinations of incorrect r,s at upper limit
 	check(false, 0, secp256k1_N, secp256k1nMinus1)
 	check(false, 0, secp256k1nMinus1, secp256k1_N)
 	check(false, 0, secp256k1_N, secp256k1_N)
 
+	// current callers ensures r,s cannot be negative, but let's test for that too
+	// as crypto package could be used stand-alone
 	check(false, 0, minusOne, one)
 	check(false, 0, one, minusOne)
 }
@@ -189,6 +216,8 @@ func checkAddr(t *testing.T, addr0, addr1 common.Address) {
 	}
 }
 
+// test to help Python team with integration of libsecp256k1
+// skip but keep it after they are done
 func TestPythonIntegration(t *testing.T) {
 	kh := "289c2857d4598e37fb9647507e47a309d6133539bf21a8b9cb6df88fd5232032"
 	k0, _ := HexToECDSA(kh)
@@ -204,7 +233,19 @@ func TestPythonIntegration(t *testing.T) {
 }
 
 func TestFromECDSAPub(t *testing.T) {
-
+	//privateKeyECDSA, err := ecdsa.GenerateKey(secp256k1.S256(), rand.Reader)
+	//if err != nil {
+	//	fmt.Println("error")
+	//	return
+	//}
+	//publicKey := privateKeyECDSA.Public()
+	//fmt.Println(publicKey)
+	//res := FromECDSAPub(publicKey.(*ecdsa.PublicKey))
+	//printRes := base64.StdEncoding.EncodeToString(res)
+	//fmt.Println(printRes)
+	//decodeRes, _ := base64.StdEncoding.DecodeString(printRes)
+	//pub := ToECDSAPub(decodeRes)
+	//fmt.Println(pub)
 	startTime := time.Now().Nanosecond()
 	msg := "aafadsfladfsafadsfadsfasdfadsfadsfadsfdsafasdffasdfdsa"
 	privateKeyECDSA, err := ecdsa.GenerateKey(secp256k1.S256(), rand.Reader)
@@ -220,12 +261,27 @@ func TestFromECDSAPub(t *testing.T) {
 	var b [32]byte
 	b = sha3.Sum256(common.FromHex(msg))
 	sign, err := Sign(b[:], privateKeyECDSA)
-
+	//fmt.Println(err)
+	//fmt.Println(sign)
+	//decode := hexutil.MustDecode(string(sign))
 	pubkey, _ := secp256k1.RecoverPubkey(b[:], sign)
 	endTime := time.Now().Nanosecond()
 	fmt.Println(PubkeyToAddress(*ToECDSAPub(pubkey)).Hex())
 	fmt.Printf("cost time:%d", endTime-startTime)
+	//publicKey, _ := SigToPub(b[:], sign)
+	//pubString := hexutil.MustDecode(hexutil.Encode(FromECDSAPub(&privateKeyECDSA.PublicKey)[:]))
+	//signature := VerifySignature(FromECDSAPub(&privateKeyECDSA.PublicKey),b[:], sign)
 
+	//signature := VerifySignature(FromECDSAPub(publicKey),b[:], sign)
+	//fmt.Println(signature)
+	//publicKey := privateKeyECDSA.Public()
+	//fmt.Println(publicKey)
+	//res := FromECDSAPub(publicKey.(*ecdsa.PublicKey))
+	//printRes := base64.StdEncoding.EncodeToString(res)
+	//fmt.Println(printRes)
+	//decodeRes, _ := base64.StdEncoding.DecodeString(printRes)
+	//pub := ToECDSAPub(decodeRes)
+	//fmt.Println(pub)
 }
 
 func TestCompressPubkey2(t *testing.T) {
@@ -260,7 +316,7 @@ func TestCompressPubkey2(t *testing.T) {
 			t.Fatal(err)
 		}
 		recoverAddress := PubkeyToAddress(*ToECDSAPub(pubkey)).Hex()
-
+		// fmt.Printf("address:%s recoverAddress:%s\n",address,recoverAddress)
 		if !strings.EqualFold(address, recoverAddress) {
 			break
 			fmt.Printf("address:%s recoverAddress:%s\n", address, recoverAddress)

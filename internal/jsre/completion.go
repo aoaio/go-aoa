@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package jsre
 
 import (
@@ -7,6 +23,8 @@ import (
 	"github.com/robertkrimen/otto"
 )
 
+// CompleteKeywords returns potential continuations for the given line. Since line is
+// evaluated, callers need to make sure that evaluating line does not have side effects.
 func (jsre *JSRE) CompleteKeywords(line string) []string {
 	var results []string
 	jsre.Do(func(vm *otto.Otto) {
@@ -38,6 +56,8 @@ func getCompletions(vm *otto.Otto, line string) (results []string) {
 		}
 	})
 
+	// Append opening parenthesis (for functions) or dot (for objects)
+	// if the line itself is the only completion.
 	if len(results) == 1 && results[0] == line {
 		obj, _ := vm.Object(line)
 		if obj != nil {

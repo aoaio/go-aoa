@@ -1,41 +1,64 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package state
 
 import (
 	"fmt"
 	"sync"
 
-	"github.com/Aurorachain/go-Aurora/aoadb"
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/trie"
+	"github.com/Aurorachain/go-aoa/aoadb"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/trie"
 	"github.com/hashicorp/golang-lru"
 )
 
+// Trie cache generation limit after which to evic trie nodes from memory.
 var MaxTrieCacheGen = uint16(120)
 
 const (
-
+	// Number of past tries to keep. This value is chosen such that
+	// reasonable chain reorg depths will hit an existing trie.
 	maxPastTries = 12
 
+	// Number of codehash->size associations to keep.
 	codeSizeCacheSize = 100000
 
 	abiKeySuffix = "_abi"
 )
 
+// Database wraps access to tries and contract code.
 type Database interface {
-
+	// Accessing tries:
+	// OpenTrie opens the main account trie.
+	// OpenStorageTrie opens the storage trie of an account.
 	OpenTrie(root common.Hash) (Trie, error)
 	OpenStorageTrie(addrHash, root common.Hash) (Trie, error)
-
+	// Accessing contract code:
 	ContractCode(addrHash, codeHash common.Hash) ([]byte, error)
 	ContractCodeSize(addrHash, codeHash common.Hash) (int, error)
-
+	// Accessing contract abi
 	ContractAbi(addrHash, codeHash common.Hash) (string, error)
-
+	// CopyTrie returns an independent copy of the given trie.
 	CopyTrie(Trie) Trie
-
+	// Accessing assetdata
 	AssetData(addrHash, assetHash common.Hash) ([]byte, error)
 }
 
+// Trie is a Aurora Merkle Trie.
 type Trie interface {
 	TryGet(key []byte) ([]byte, error)
 	TryUpdate(key, value []byte) error
@@ -43,9 +66,11 @@ type Trie interface {
 	CommitTo(trie.DatabaseWriter) (common.Hash, error)
 	Hash() common.Hash
 	NodeIterator(startKey []byte) trie.NodeIterator
-	GetKey([]byte) []byte
+	GetKey([]byte) []byte // TODO(fjl): remove this when SecureTrie is removed
 }
 
+// NewDatabase creates a backing store for state. The returned database is safe for
+// concurrent use and retains cached trie nodes in memory.
 func NewDatabase(db aoadb.Database) Database {
 	csc, _ := lru.New(codeSizeCacheSize)
 	return &cachingDB{db: db, codeSizeCache: csc}
@@ -122,14 +147,14 @@ func (db *cachingDB) ContractCodeSize(addrHash, codeHash common.Hash) (int, erro
 
 func (db *cachingDB) ContractAbi(addrHash, codeHash common.Hash) (string, error) {
 	key := AbiKey(codeHash.Bytes())
-	has,err := db.db.Has(key)
+	has, err := db.db.Has(key)
 	if has {
-		abibytes ,err := db.db.Get(key)
+		abibytes, err := db.db.Get(key)
 		if err == nil {
-			return string(abibytes),nil
+			return string(abibytes), nil
 		}
 	}
-	return "",err
+	return "", err
 }
 
 func (db *cachingDB) AssetData(addrHash, assetHash common.Hash) ([]byte, error) {
@@ -137,9 +162,10 @@ func (db *cachingDB) AssetData(addrHash, assetHash common.Hash) ([]byte, error) 
 }
 
 func AbiKey(codeHash []byte) []byte {
-	return append(codeHash,[]byte(abiKeySuffix)...)
+	return append(codeHash, []byte(abiKeySuffix)...)
 }
 
+// cachedTrie inserts its trie into a cachingDB on commit.
 type cachedTrie struct {
 	*trie.SecureTrie
 	db *cachingDB

@@ -11,10 +11,10 @@ fi
 workspace="$PWD/build/_workspace"
 root="$PWD"
 aoadir="$workspace/src/github.com/Aurorachain"
-if [ ! -L "$aoadir/go-Aurora" ]; then
+if [ ! -L "$aoadir/go-aoa" ]; then
     mkdir -p "$aoadir"
     cd "$aoadir"
-    ln -s ../../../../../. go-Aurora
+    ln -s ../../../../../. go-aoa
     cd "$root"
 fi
 
@@ -23,8 +23,8 @@ GOPATH="$workspace"
 export GOPATH
 
 # Run the command inside the workspace.
-cd "$aoadir/go-Aurora"
-PWD="$aoadir/go-Aurora"
+cd "$aoadir/go-aoa"
+PWD="$aoadir/go-aoa"
 
 # Launch the arguments with the configured environment.
 exec "$@"

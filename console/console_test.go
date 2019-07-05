@@ -1,19 +1,35 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package console
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/Aurorachain/go-aoa/aoa"
+	"github.com/Aurorachain/go-aoa/common"
+	"github.com/Aurorachain/go-aoa/core"
+	"github.com/Aurorachain/go-aoa/internal/jsre"
+	"github.com/Aurorachain/go-aoa/node"
 	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
 	"time"
-	"github.com/Aurorachain/go-Aurora/common"
-	"github.com/Aurorachain/go-Aurora/core"
-	"github.com/Aurorachain/go-Aurora/aoa"
-	"github.com/Aurorachain/go-Aurora/internal/jsre"
-	"github.com/Aurorachain/go-Aurora/node"
 )
 
 const (
@@ -21,18 +37,19 @@ const (
 	testAddress  = "0x8605cdbbdb6d264aa742e77020dcbc58fcdce182"
 )
 
+// hookedPrompter implements UserPrompter to simulate use input via channels.
 type hookedPrompter struct {
 	scheduler chan string
 }
 
 func (p *hookedPrompter) PromptInput(prompt string) (string, error) {
-
+	// Send the prompt to the tester
 	select {
 	case p.scheduler <- prompt:
 	case <-time.After(time.Second):
 		return "", errors.New("prompt timeout")
 	}
-
+	// Retrieve the response and feed to the console
 	select {
 	case input := <-p.scheduler:
 		return input, nil
@@ -52,6 +69,7 @@ func (p *hookedPrompter) AppendHistory(command string)             {}
 func (p *hookedPrompter) ClearHistory()                            {}
 func (p *hookedPrompter) SetWordCompleter(completer WordCompleter) {}
 
+// tester is a console test environment for the console tests to operate on.
 type tester struct {
 	workspace string
 	stack     *node.Node
@@ -61,13 +79,16 @@ type tester struct {
 	output    *bytes.Buffer
 }
 
+// newTester creates a test environment based on which the console can operate.
+// Please ensure you call Close() on the returned tester to avoid leaks.
 func newTester(t *testing.T, confOverride func(*aoa.Config)) *tester {
-
+	// Create a temporary storage for the node keys and initialize it
 	workspace, err := ioutil.TempDir("", "console-tester-")
 	if err != nil {
 		t.Fatalf("failed to create temporary keystore: %v", err)
 	}
 
+	// Create a networkless protocol stack and start an Aurora service within
 	stack, err := node.New(&node.Config{DataDir: workspace, UseLightweightKDF: true, Name: testInstance})
 	if err != nil {
 		t.Fatalf("failed to create node: %v", err)
@@ -82,7 +103,7 @@ func newTester(t *testing.T, confOverride func(*aoa.Config)) *tester {
 	if err = stack.Register(func(ctx *node.ServiceContext) (node.Service, error) { return aoa.New(ctx, ethConf) }); err != nil {
 		t.Fatalf("failed to register Aurora protocol: %v", err)
 	}
-
+	// Start the node and assemble the JavaScript console around it
 	if err = stack.Start(); err != nil {
 		t.Fatalf("failed to start test stack: %v", err)
 	}
@@ -104,7 +125,7 @@ func newTester(t *testing.T, confOverride func(*aoa.Config)) *tester {
 	if err != nil {
 		t.Fatalf("failed to create JavaScript console: %v", err)
 	}
-
+	// Create the final tester and return
 	var Aurora *aoa.Aurora
 	stack.Service(&Aurora)
 
@@ -118,6 +139,7 @@ func newTester(t *testing.T, confOverride func(*aoa.Config)) *tester {
 	}
 }
 
+// Close cleans up any temporary data folders and held resources.
 func (env *tester) Close(t *testing.T) {
 	if err := env.console.Stop(false); err != nil {
 		t.Errorf("failed to stop embedded console: %v", err)
@@ -128,6 +150,9 @@ func (env *tester) Close(t *testing.T) {
 	os.RemoveAll(env.workspace)
 }
 
+// Tests that the node lists the correct welcome message, notably that it contains
+// the instance name, coinbase account, block number, data directory and supported
+// console modules.
 func TestWelcome(t *testing.T) {
 	tester := newTester(t, nil)
 	defer tester.Close(t)
@@ -152,6 +177,7 @@ func TestWelcome(t *testing.T) {
 	}
 }
 
+// Tests that JavaScript statement evaluation works as intended.
 func TestEvaluate(t *testing.T) {
 	tester := newTester(t, nil)
 	defer tester.Close(t)
@@ -162,13 +188,15 @@ func TestEvaluate(t *testing.T) {
 	}
 }
 
+// Tests that the console can be used in interactive mode.
 func TestInteractive(t *testing.T) {
-
+	// Create a tester and run an interactive console in the background
 	tester := newTester(t, nil)
 	defer tester.Close(t)
 
 	go tester.console.Interactive()
 
+	// Wait for a promt and send a statement back
 	select {
 	case <-tester.input.scheduler:
 	case <-time.After(time.Second):
@@ -179,7 +207,7 @@ func TestInteractive(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatalf("input feedback timeout")
 	}
-
+	// Wait for the second promt and ensure first statement was evaluated
 	select {
 	case <-tester.input.scheduler:
 	case <-time.After(time.Second):
@@ -190,6 +218,8 @@ func TestInteractive(t *testing.T) {
 	}
 }
 
+// Tests that preloaded JavaScript files have been executed before user is given
+// input.
 func TestPreload(t *testing.T) {
 	tester := newTester(t, nil)
 	defer tester.Close(t)
@@ -200,6 +230,7 @@ func TestPreload(t *testing.T) {
 	}
 }
 
+// Tests that JavaScript scripts can be executes from the configured asset path.
 func TestExecute(t *testing.T) {
 	tester := newTester(t, nil)
 	defer tester.Close(t)
@@ -212,12 +243,15 @@ func TestExecute(t *testing.T) {
 	}
 }
 
+// Tests that the JavaScript objects returned by statement executions are properly
+// pretty printed instead of just displaing "[object]".
 func TestPrettyPrint(t *testing.T) {
 	tester := newTester(t, nil)
 	defer tester.Close(t)
 
 	tester.console.Evaluate("obj = {int: 1, string: 'two', list: [3, 3, 3], obj: {null: null, func: function(){}}}")
 
+	// Define some specially formatted fields
 	var (
 		one   = jsre.NumberColor("1")
 		two   = jsre.StringColor("\"two\"")
@@ -225,7 +259,7 @@ func TestPrettyPrint(t *testing.T) {
 		null  = jsre.SpecialColor("null")
 		fun   = jsre.FunctionColor("function()")
 	)
-
+	// Assemble the actual output we're after and verify
 	want := `{
   int: ` + one + `,
   list: [` + three + `, ` + three + `, ` + three + `],
@@ -241,6 +275,7 @@ func TestPrettyPrint(t *testing.T) {
 	}
 }
 
+// Tests that the JavaScript exceptions are properly formatted and colored.
 func TestPrettyError(t *testing.T) {
 	tester := newTester(t, nil)
 	defer tester.Close(t)
@@ -252,6 +287,7 @@ func TestPrettyError(t *testing.T) {
 	}
 }
 
+// Tests that tests if the number of indents for JS input is calculated correct.
 func TestIndenting(t *testing.T) {
 	testCases := []struct {
 		input               string

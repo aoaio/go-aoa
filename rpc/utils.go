@@ -1,3 +1,19 @@
+// Copyright 2018 The go-aurora Authors
+// This file is part of the go-aurora library.
+//
+// The go-aurora library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The go-aurora library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-aurora library. If not, see <http://www.gnu.org/licenses/>.
+
 package rpc
 
 import (
@@ -21,21 +37,25 @@ var (
 	subscriptionIDGen   = idGenerator()
 )
 
+// Is this an exported - upper case - name?
 func isExported(name string) bool {
 	rune, _ := utf8.DecodeRuneInString(name)
 	return unicode.IsUpper(rune)
 }
 
+// Is this type exported or a builtin?
 func isExportedOrBuiltinType(t reflect.Type) bool {
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-
+	// PkgPath will be non-empty even for an exported type,
+	// so we need to check the type name as well.
 	return isExported(t.Name()) || t.PkgPath() == ""
 }
 
 var contextType = reflect.TypeOf((*context.Context)(nil)).Elem()
 
+// isContextType returns an indication if the given t is of context.Context or *context.Context type
 func isContextType(t reflect.Type) bool {
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -45,6 +65,7 @@ func isContextType(t reflect.Type) bool {
 
 var errorType = reflect.TypeOf((*error)(nil)).Elem()
 
+// Implements this type the error interface
 func isErrorType(t reflect.Type) bool {
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -54,6 +75,7 @@ func isErrorType(t reflect.Type) bool {
 
 var subscriptionType = reflect.TypeOf((*Subscription)(nil)).Elem()
 
+// isSubscriptionType returns an indication if the given t is of Subscription or *Subscription type
 func isSubscriptionType(t reflect.Type) bool {
 	for t.Kind() == reflect.Ptr {
 		t = t.Elem()
@@ -61,8 +83,10 @@ func isSubscriptionType(t reflect.Type) bool {
 	return t == subscriptionType
 }
 
+// isPubSub tests whether the given method has as as first argument a context.Context
+// and returns the pair (Subscription, error)
 func isPubSub(methodType reflect.Type) bool {
-
+	// numIn(0) is the receiver type
 	if methodType.NumIn() < 2 || methodType.NumOut() != 2 {
 		return false
 	}
@@ -72,6 +96,7 @@ func isPubSub(methodType reflect.Type) bool {
 		isErrorType(methodType.Out(1))
 }
 
+// formatName will convert to first character to lower case
 func formatName(name string) string {
 	ret := []rune(name)
 	if len(ret) > 0 {
@@ -82,6 +107,7 @@ func formatName(name string) string {
 
 var bigIntType = reflect.TypeOf((*big.Int)(nil)).Elem()
 
+// Indication if this type should be serialized in hex
 func isHexNum(t reflect.Type) bool {
 	if t == nil {
 		return false
@@ -93,6 +119,9 @@ func isHexNum(t reflect.Type) bool {
 	return t == bigIntType
 }
 
+// suitableCallbacks iterates over the methods of the given type. It will determine if a method satisfies the criteria
+// for a RPC callback or a subscription callback and adds it to the collection of callbacks or subscriptions. See server
+// documentation for a summary of these criteria.
 func suitableCallbacks(rcvr reflect.Value, typ reflect.Type) (callbacks, subscriptions) {
 	callbacks := make(callbacks)
 	subscriptions := make(subscriptions)
@@ -102,7 +131,7 @@ METHODS:
 		method := typ.Method(m)
 		mtype := method.Type
 		mname := formatName(method.Name)
-		if method.PkgPath != "" {
+		if method.PkgPath != "" { // method must be exported
 			continue
 		}
 
@@ -120,7 +149,7 @@ METHODS:
 		}
 
 		if h.isSubscribe {
-			h.argTypes = make([]reflect.Type, numIn-firstArg)
+			h.argTypes = make([]reflect.Type, numIn-firstArg) // skip rcvr type
 			for i := firstArg; i < numIn; i++ {
 				argType := mtype.In(i)
 				if isExportedOrBuiltinType(argType) {
@@ -134,6 +163,8 @@ METHODS:
 			continue METHODS
 		}
 
+		// determine method arguments, ignore first arg since it's the receiver type
+		// Arguments must be exported or builtin walletType
 		h.argTypes = make([]reflect.Type, numIn-firstArg)
 		for i := firstArg; i < numIn; i++ {
 			argType := mtype.In(i)
@@ -143,12 +174,14 @@ METHODS:
 			h.argTypes[i-firstArg] = argType
 		}
 
+		// check that all returned values are exported or builtin walletType
 		for i := 0; i < mtype.NumOut(); i++ {
 			if !isExportedOrBuiltinType(mtype.Out(i)) {
 				continue METHODS
 			}
 		}
 
+		// when a method returns an error it must be the last returned value
 		h.errPos = -1
 		for i := 0; i < mtype.NumOut(); i++ {
 			if isErrorType(mtype.Out(i)) {
@@ -163,7 +196,7 @@ METHODS:
 
 		switch mtype.NumOut() {
 		case 0, 1, 2:
-			if mtype.NumOut() == 2 && h.errPos == -1 {
+			if mtype.NumOut() == 2 && h.errPos == -1 { // method must one return value and 1 error
 				continue METHODS
 			}
 			callbacks[mname] = &h
@@ -173,6 +206,8 @@ METHODS:
 	return callbacks, subscriptions
 }
 
+// idGenerator helper utility that generates a (pseudo) random sequence of
+// bytes that are used to generate identifiers.
 func idGenerator() *rand.Rand {
 	if seed, err := binary.ReadVarint(bufio.NewReader(crand.Reader)); err == nil {
 		return rand.New(rand.NewSource(seed))
@@ -180,6 +215,8 @@ func idGenerator() *rand.Rand {
 	return rand.New(rand.NewSource(int64(time.Now().Nanosecond())))
 }
 
+// NewID generates a identifier that can be used as an identifier in the RPC interface.
+// e.g. filter and subscription identifier.
 func NewID() ID {
 	subscriptionIDGenMu.Lock()
 	defer subscriptionIDGenMu.Unlock()
@@ -194,7 +231,7 @@ func NewID() ID {
 	}
 
 	rpcId := hex.EncodeToString(id)
-
+	// rpc ID's are RPC quantities, no leading zero's and 0 is 0x0
 	rpcId = strings.TrimLeft(rpcId, "0")
 	if rpcId == "" {
 		rpcId = "0"

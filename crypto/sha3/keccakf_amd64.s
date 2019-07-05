@@ -1,4 +1,13 @@
+// Copyright 2015 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
 
+// +build amd64,!appengine,!gccgo
+
+// This code was translated into a form compatible with 6a from the public
+// domain sources at https://github.com/gvanas/KeccakCodePackage
+
+// Offsets in state
 #define _ba  (0*8)
 #define _be  (1*8)
 #define _bi  (2*8)
@@ -25,8 +34,10 @@
 #define _so (23*8)
 #define _su (24*8)
 
+// Temporary registers
 #define rT1  AX
 
+// Round vars
 #define rpState DI
 #define rpStack SP
 
@@ -308,9 +319,11 @@
 	MOVQ rDi, _si(oState); \
 	MOVQ rDo, _so(oState)  \
 
+// func keccakF1600(state *[25]uint64)
 TEXT ·keccakF1600(SB), 0, $200-8
 	MOVQ state+0(FP), rpState
 
+	// Convert the user state into an internal state
 	NOTQ _be(rpState)
 	NOTQ _bi(rpState)
 	NOTQ _go(rpState)
@@ -318,6 +331,7 @@ TEXT ·keccakF1600(SB), 0, $200-8
 	NOTQ _mi(rpState)
 	NOTQ _sa(rpState)
 
+	// Execute the KeccakF permutation
 	MOVQ _ba(rpState), rCa
 	MOVQ _be(rpState), rCe
 	MOVQ _bu(rpState), rCu
@@ -365,6 +379,7 @@ TEXT ·keccakF1600(SB), 0, $200-8
 	mKeccakRound(rpState, rpStack, $0x0000000080000001, MOVQ_RBI_RCE, XORQ_RT1_RCA, XORQ_RT1_RCE, XORQ_RBA_RCU, XORQ_RT1_RCA, XORQ_RT1_RCE, XORQ_RBA_RCU, XORQ_RT1_RCA, XORQ_RT1_RCE, XORQ_RBE_RCU, XORQ_RDU_RCU, XORQ_RDA_RCA, XORQ_RDE_RCE)
 	mKeccakRound(rpStack, rpState, $0x8000000080008008, NOP, NOP, NOP, NOP, NOP, NOP, NOP, NOP, NOP, NOP, NOP, NOP, NOP)
 
+	// Revert the internal state to the user state
 	NOTQ _be(rpState)
 	NOTQ _bi(rpState)
 	NOTQ _go(rpState)
