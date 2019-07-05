@@ -1,9 +1,5 @@
 # go-aoa
 
-
-[![ISC License](http://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
-[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)]
-
 The Aurorachain project has three phases, this is the first phase of the code.
 
 ### Deploy
