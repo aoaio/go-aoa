@@ -56,7 +56,7 @@ func monitorUpgrade(tx types.Transaction, receipt *types.Receipt) {
 	log.Infof("*tx.To(): ", *tx.To())
 	switch *tx.To() {
 	case common.HexToAddress(Upgrade_mgmt_address):
-		log.Error("DoUpGrade, mgmt, receipt logs: %v ", receipt.Logs)
+		log.Errorf("DoUpGrade, mgmt, receipt logs: %v ", receipt.Logs)
 		log.Error("DoUpGrade,mgmt logs len = " + strconv.Itoa(len(receipt.Logs)))
 		if len(receipt.Logs) == 2 {
 			log.Error("DoUpGrade, Upgrade_mgmt_address1 logic address= \n" + transferTopicToString(receipt.Logs[1].Topics[0]))
@@ -235,11 +235,11 @@ func isUpgradeScheduleRun() bool {
 	return upgradeScheduleRun == ""
 }
 
-func prepareNewAoa(url string, tag string) {
+func prepareNewAoa(url string, tag string, md5 string) {
 	//download aoa code from github and compile it to new AOA program
 	log.Info("DoUpGrade, call prepare_aoa.sh url=" + url + ", tag=" + tag)
 	var startPlace = "aoa"
-	command := exec.Command("/bin/bash", "/etc/rc.d/init.d/prepare_aoa.sh", url, tag, startPlace, StartMode)
+	command := exec.Command("/bin/bash", "/etc/rc.d/init.d/prepare_aoa.sh", url, tag, startPlace, StartMode, md5)
 	err := command.Start()
 	if err != nil {
 		fmt.Println("*****, err=", err.Error())
@@ -284,7 +284,7 @@ func DoUpgrade() {
 	} else if status == 1 {
 		// query upgrade contract address from Upgrade_mgmt_address
 		log.Info("DoUpgrade, status=1, calling prepare_aoa.sh to download source code and compile aoa binary.")
-		prepareNewAoa(requestInfo.Url, getTagFromVersion(requestInfo.Version))
+		prepareNewAoa(requestInfo.Url, getTagFromVersion(requestInfo.Version), requestInfo.Md5)
 		requestInfo.Status = 2
 		SetRequestInfo(LogicAddress, requestInfo)
 	} else if status == 2 {
@@ -308,7 +308,7 @@ func DoUpgrade() {
 
 			} else {
 				log.Info("DoUpGrade,ERROR! new AOA binary doesn't exist.")
-				prepareNewAoa(requestInfo.Url, getTagFromVersion(requestInfo.Version))
+				prepareNewAoa(requestInfo.Url, getTagFromVersion(requestInfo.Version), requestInfo.Md5)
 			}
 
 		}
