@@ -2,7 +2,6 @@
 
 ====
 
-[![Build Status](https://www.aurorachain.io)](https://www.aurorachain.io)
 [![ISC License](http://img.shields.io/badge/license-ISC-blue.svg)](http://copyfree.org)
 [![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg)]()
 
