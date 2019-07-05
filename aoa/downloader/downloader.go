@@ -403,7 +403,7 @@ func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.I
 		return errTooOld
 	}
 
-	log.Infof("Synchronising with the network, peer=%v, aoa=%a, head=%v, td=%v, mode=%v", p.id,  p.version,  hash,  td, d.mode)
+	log.Infof("Synchronising with the network, peer=%v, aoa=%a, head=%v, td=%v, mode=%v", p.id, p.version, hash.String(), td, d.mode)
 	defer func(start time.Time) {
 		log.Infof("Synchronisation terminated, elapsed=%v", time.Since(start))
 	}(time.Now())
@@ -682,7 +682,7 @@ func (d *Downloader) findAncestor(p *peerConnection, height uint64) (uint64, err
 			log.Warn("Ancestor below allowance", "number", number, "hash", hash, "allowance", floor)
 			return 0, errInvalidAncestor
 		}
-		log.Infof("Found common ancestor, number=%v, hash=%v", number, hash)
+		log.Infof("Found common ancestor, number=%v, hash=%v", number, hash.String())
 		return number, nil
 	}
 	// Ancestor not found, we need to binary search over our chain
@@ -732,7 +732,7 @@ func (d *Downloader) findAncestor(p *peerConnection, height uint64) (uint64, err
 				start = check
 
 			case <-timeout:
-				log.Infof("Waiting for search header timed out, elapsed=%v",  ttl)
+				log.Infof("Waiting for search header timed out, elapsed=%v", ttl)
 				return 0, errTimeout
 
 			case <-d.bodyCh:
@@ -759,7 +759,7 @@ func (d *Downloader) findAncestor(p *peerConnection, height uint64) (uint64, err
 // can fill in the skeleton - not even the origin peer - it's assumed invalid and
 // the origin is dropped.
 func (d *Downloader) fetchHeaders(p *peerConnection, from uint64) error {
-	log.Infof("Directing header downloads, origin=%v",  from)
+	log.Infof("Directing header downloads, origin=%v", from)
 	defer log.Info("Header download terminated")
 
 	// Create a timeout timer, and the associated header fetcher
@@ -873,7 +873,7 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64) error {
 // The method returs the entire filled skeleton and also the number of headers
 // already forwarded for processing.
 func (d *Downloader) fillHeaderSkeleton(from uint64, skeleton []*types.Header) ([]*types.Header, int, error) {
-	log.Infof("Filling up skeleton, from=%v",  from)
+	log.Infof("Filling up skeleton, from=%v", from)
 	d.queue.ScheduleSkeleton(from, skeleton)
 
 	var (
@@ -894,7 +894,7 @@ func (d *Downloader) fillHeaderSkeleton(from uint64, skeleton []*types.Header) (
 		d.queue.PendingHeaders, d.queue.InFlightHeaders, throttle, reserve,
 		nil, fetch, d.queue.CancelHeaders, capacity, d.peers.HeaderIdlePeers, setIdle, "headers")
 
-	log.Infof("Skeleton fill terminated, err=%v",err)
+	log.Infof("Skeleton fill terminated, err=%v", err)
 
 	filled, proced := d.queue.RetrieveHeaders()
 	return filled, proced, err

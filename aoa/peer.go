@@ -278,7 +278,7 @@ func (p *peer) RequestOneHeader(hash common.Hash) error {
 // RequestHeadersByHash fetches a batch of blocks' headers corresponding to the
 // specified header query, based on the hash of an origin block.
 func (p *peer) RequestHeadersByHash(origin common.Hash, amount int, skip int, reverse bool) error {
-	log.Infof("Fetching batch of headers, count=%v, fromhash=%v, origin=%v, skip=%v, reverse=%v",  amount,  origin, skip, reverse)
+	log.Infof("Fetching batch of headers, count=%v, fromhash=%v, origin=%v, skip=%v, reverse=%v", amount, origin.String(), skip, reverse)
 	return p2p.Send(p.rw, GetBlockHeadersMsg, &getBlockHeadersData{Origin: hashOrNumber{Hash: origin}, Amount: uint64(amount), Skip: uint64(skip), Reverse: reverse})
 }
 
