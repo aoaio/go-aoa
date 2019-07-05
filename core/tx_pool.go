@@ -127,7 +127,7 @@ var (
 type TxStatus uint
 
 const (
-	TxStatusUnknown  TxStatus = iota
+	TxStatusUnknown TxStatus = iota
 	TxStatusQueued
 	TxStatusPending
 	TxStatusIncluded
@@ -541,7 +541,7 @@ func (pool *TxPool) stats() (int, int) {
 	return pending, queued
 }
 
-func (pool *TxPool) txKindNum() (map[string]int) {
+func (pool *TxPool) txKindNum() map[string]int {
 	res := make(map[string]int)
 	for _, kv := range *pool.priced.items {
 		res[kv.GetKey()] = kv.GetValueLen()
@@ -549,7 +549,7 @@ func (pool *TxPool) txKindNum() (map[string]int) {
 	return res
 }
 
-func (pool *TxPool) TxKindNum() (map[string]int) {
+func (pool *TxPool) TxKindNum() map[string]int {
 	pool.mu.RLock()
 	defer pool.mu.RUnlock()
 
@@ -803,7 +803,7 @@ func validateVote(prevVoteList []common.Address, curVoteList []types.Vote, deleg
 // the pool due to pricing constraints.
 func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 	wholeTransactionNumber := pool.config.GlobalQueue + pool.config.GlobalSlots
-	log.Infof("Tx_Pool|add|start, to=%v, type=%v", tx.To(), tx.GetTransactionType().Hex())
+	log.Infof("Tx_Pool|add|start, to=%v, type=%v", tx.To().String(), tx.GetTransactionType().Hex())
 	// If the transaction is already known, discard it
 	hash := tx.Hash()
 	txType := tx.GetTransactionType()
@@ -860,7 +860,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 		pool.priced.Put(tx, pool.currentState)
 		pool.journalTx(from, tx)
 
-		log.Debugf("Pooled new executable transaction, hash=%v, from=%v, to=%v",  hash,  from, tx.To())
+		log.Debugf("Pooled new executable transaction, hash=%v, from=%v, to=%v", hash, from, tx.To())
 
 		// We've directly injected a replacement transaction, notify subsystems
 		go pool.txFeed.Send(TxPreEvent{tx})
@@ -880,7 +880,7 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (bool, error) {
 	if !replace {
 		//countTransaction(tx, addTransactionCount, pool.currentState)
 	}
-	log.Debugf("Pooled new future transaction, hash=%v, from=%v, to=%v",  hash, from, tx.To())
+	log.Debugf("Pooled new future transaction, hash=%v, from=%v, to=%v", hash, from, tx.To())
 	return replace, nil
 }
 
