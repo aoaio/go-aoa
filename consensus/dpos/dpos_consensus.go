@@ -129,7 +129,7 @@ func (d *AuroraDpos) VerifyHeaderAndSign(chain consensus.ChainReader, block *typ
 		return errors.New(errMsg)
 	}
 	pubkey, err := secp256k1.RecoverPubkey(block.Hash().Bytes()[:32], coinbaseSign)
-	log.Infof("VerifyHeaderAndSign, coinbaseSign=%v, blockHash=%v, pubkey=%v, err=%v ", common.ToHex(coinbaseSign), block.Hash().Hex(), common.ToHex(pubkey), err)
+	log.Infof("VerifyHeaderAndSign, coinbaseSign=%v, blockHash=%v, pubkey=%v, err=%v ", coinbaseSign, block.Hash().Hex(), pubkey, err)
 	//if err != nil {
 	//	return err
 	//}

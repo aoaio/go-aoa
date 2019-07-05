@@ -451,7 +451,7 @@ func (tab *Table) doRefresh(done chan struct{}) {
 		}
 		for _, n := range seeds {
 			age := time.Since(tab.db.lastPong(n.ID))
-			log.Debugf("Query seed node, id=%v, addr=%v, age=%v", n.ID, n.addr(), age)
+			log.Debugf("Query seed node, id=%v, addr=%v, age=%v",  n.ID,  n.addr(), age)
 		}
 		tab.mutex.Lock()
 		tab.stuff(seeds, CommNet)
@@ -467,11 +467,11 @@ func (tab *Table) doRefresh(done chan struct{}) {
 		go func() {
 			seeds = tab.bondall(append(seeds, tab.nursery...), ConsNet)
 			if len(seeds) == 0 {
-				log.Info("No discv4 seed nodes found")
+				log.Error("No discv4 seed nodes found")
 			}
 			for _, n := range seeds {
 				age := time.Since(tab.db.lastPong(n.ID))
-				log.Infof("Found seed node in database, id=%v, addr=%v, age=%v", n.ID, n.addr(), age)
+				log.Errorf("Found seed node in database, id=%v, addr=%v, age=%v", n.ID, n.addr(),  age)
 			}
 			tab.consmutex.Lock()
 			tab.stuff(seeds, ConsNet)
