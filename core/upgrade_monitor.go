@@ -266,7 +266,7 @@ func DoUpgrade() {
 	lock.Lock()
 	defer lock.Unlock()
 	LogicAddress := UpGet(common.FromHex(Upgrade_mgmt_address))
-	log.Errorf("DoUpGrade, mgmt address = %v, logic address= %v ", Upgrade_mgmt_address, common.Bytes2Hex(LogicAddress))
+	log.Debugf("DoUpGrade, mgmt address = %v, logic address= %v ", Upgrade_mgmt_address, common.ToHex(LogicAddress))
 	requestInfo := GetRequestInfo(LogicAddress)
 
 	if !isNewVersionHigher(requestInfo) {

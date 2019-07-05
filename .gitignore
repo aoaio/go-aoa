@@ -16,9 +16,9 @@ build/_vendor/pkg
 .settings
 
 # used by the Makefile
-/build/_workspace/
-/build/bin/
-/aoa*.zip
+build/_workspace/
+build/bin/
+aoa*.zip
 
 # travis
 profile.tmp

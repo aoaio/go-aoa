@@ -174,14 +174,14 @@ func (pm *ProtocolManager) synchroniseWithHigherPeers(peer *peer, block *types.B
 	// genesis(0) difficult is 1,so block parent difficult is block number
 	peerId := block.Number().Int64()
 	pHead, pTd := peer.Head()
-	log.Info("ProtocolManager|synchroniseWithBestPeers start", "currentPeerTD", td.Uint64(), "remotePeerTD", peerId, "peerId", peer.id)
+	log.Info("ProtocolManager|synchroniseWithBestPeers start ", " currentPeerTD=", td.Uint64(), " remotePeerTD=", peerId, " peerId=", peer.id)
 	if peerId-td.Int64() <= 0 {
 		return
 	}
 	peer.SetHead(block.ParentHash(), big.NewInt(peerId))
 	mode := downloader.FullSync
 	err := pm.downloader.Synchronise(peer.id, pHead, pTd, mode)
-	log.Info("ProtocolManager|synchroniseWithBestPeers end", "currentPeerTD", td.Uint64(), "remotePeerTD", pTd.Uint64(), "err", err)
+	log.Info("ProtocolManager|synchroniseWithBestPeers end ", " currentPeerTD=", td.Uint64(), " remotePeerTD=", pTd.Uint64(), " err:", err)
 }
 
 // synchronise tries to sync up our local block chain with a remote peer.
@@ -197,7 +197,7 @@ func (pm *ProtocolManager) synchronise(peer *peer) {
 	if pTd.Cmp(td) <= 0 {
 		return
 	}
-	log.Info("ProtocolManager|synchronise start", "currentPeerTD", td.Uint64(), "remotePeerTD", pTd.Uint64())
+	log.Info("ProtocolManager|synchronise start ", " currentPeerTD=", td.Uint64(), " remotePeerTD=", pTd.Uint64())
 	// Otherwise try to sync with the downloader
 	mode := downloader.FullSync
 	if atomic.LoadUint32(&pm.fastSync) == 1 {
