@@ -8,7 +8,6 @@ import (
 	"github.com/Aurorachain/go-aoa/core/types"
 	"github.com/Aurorachain/go-aoa/log"
 	"github.com/Aurorachain/go-aoa/rlp"
-	"math/big"
 	"os"
 	"os/exec"
 	"strconv"
@@ -39,38 +38,63 @@ var StartMode = ""
 func monitorUpgrade(tx types.Transaction, receipt *types.Receipt) {
 	defer func() { // 必须要先声明defer，否则不能捕获到panic异常
 		if err := recover(); err != nil {
-			log.Errorf("DoUpgrade, Error in monitorUpgrade, err=%v", err)
+			log.Error("DoUpgrade, Error in monitorUpgrade, err=", err)
 		}
 	}()
 
+	////TODO: remove it before release start
+	//if tx.TxDataAction() == 5 && !IsMgmtSet {
+	//	Upgrade_mgmt_address = common.Address.AoaHex(receipt.ContractAddress)
+	//	IsMgmtSet = true
+	//	log.Error("=====设置主合约地址为：" + Upgrade_mgmt_address)
+	//}
+	////TODO: remove it before release end
 	if receipt.Status == 0 || receipt.Logs == nil || len(receipt.Logs) == 0 {
 		log.Error("DoUpGrade, receipt error.")
 		return
 	}
+	log.Infof("*tx.To(): ", *tx.To())
 	switch *tx.To() {
 	case common.HexToAddress(Upgrade_mgmt_address):
-		log.Debugf("DoUpgrade, mgmt event received! mgmt contract=%v", Upgrade_mgmt_address)
+		log.Error("DoUpGrade, mgmt, receipt logs: %v ", receipt.Logs)
+		log.Error("DoUpGrade,mgmt logs len = " + strconv.Itoa(len(receipt.Logs)))
 		if len(receipt.Logs) == 2 {
+			log.Error("DoUpGrade, Upgrade_mgmt_address1 logic address= \n" + transferTopicToString(receipt.Logs[1].Topics[0]))
+			log.Error("DoUpGrade, Upgrade_mgmt_address2 \n" + transferTopicToString(receipt.Logs[1].Topics[1]))
 			if transferTopicToString(receipt.Logs[1].Topics[0]) == Sha3_mgmt_vote_result {
-				log.Info("DoUpgrade, mgmt event is Sha3_mgmt_vote_result")
+				log.Error("DoUpgrade, *****Sha3_mgmt_vote_result")
 				topic := receipt.Logs[1].Topics[2]
 				SetUpgradeContractAddress(common.FromHex(Upgrade_mgmt_address), transferTopicToAddress(topic))
-				log.Info("DoUpgrade, set upgrade logic contract=%v,  mgmt contract=%v", common.Address.String(LogicAddress), Upgrade_mgmt_address)
+				log.Error("DoUpgrade, set upgrade logic contract=" + common.Address.String(LogicAddress) + ", key=" + Upgrade_mgmt_address)
 			}
 		}
 		return
 	case LogicAddress:
-		log.Debugf("DoUpgrade, upgrade logic event received! logic contract=%v", common.Address.String(LogicAddress))
+		log.Error("DoUpGrade, logic, receipt logs: %v ", receipt.Logs)
+		log.Error("DoUpgrade, logic logs len = " + strconv.Itoa(len(receipt.Logs)))
 		if len(receipt.Logs) == 2 {
+			log.Error("DoUpGrade, Sha3_upgrade_vote_result1 \n" + transferTopicToString(receipt.Logs[1].Topics[0]))
+			log.Error("DoUpGrade, Sha3_upgrade_vote_result2 \n" + transferTopicToString(receipt.Logs[1].Topics[1]))
+			log.Error("DoUpgrade, logic vote logs len = " + strconv.Itoa(len(receipt.Logs)))
 			if transferTopicToString(receipt.Logs[1].Topics[0]) == Sha3_upgrade_vote_result {
-				log.Info("DoUpgrade, logic event is Sha3_upgrade_vote_result")
+				log.Error("DoUpgrade, *****Sha3_upgrade_vote_result")
 				originalBytes := receipt.Logs[1].Data[:]
-				log.Debugf("DoUpGrade, data of logic upgrade vote event result, string=%v", string(originalBytes))
+				//fmt.Println("*****originalBytes=", originalBytes, "originalBytes len=", len(originalBytes))
+				log.Errorf("DoUpGrade,升级信息原始完整string=" + string(originalBytes))
+				offsetBytes := originalBytes[0:32]
+				log.Errorf("DoUpGrade,*****offsetBytes=%v", offsetBytes)
 				lenBytes := originalBytes[56:64]
+				log.Errorf("DoUpGrade,*****lenBytes=%v", lenBytes)
+
 				strSize := BytesToInt64(lenBytes)
+				log.Errorf("DoUpGrade,*****strSize=%v", strSize)
+
 				contentBytes := originalBytes[64 : 64+strSize]
+				log.Errorf("*****contentBytes=%v", string(contentBytes))
 				upinfo := string(contentBytes)
 				version := strings.Split(upinfo, ";")[0]
+				log.Error("DoUpGrade,升级信息截取的string=" + upinfo)
+				log.Error("DoUpGrade,substring of version:" + version + ", len=" + strconv.Itoa(len(version)))
 				url := strings.Split(upinfo, ";")[1]
 				md5 := strings.Split(upinfo, ";")[2]
 				upgradeInfo := RequestInfo{
@@ -88,9 +112,10 @@ func monitorUpgrade(tx types.Transaction, receipt *types.Receipt) {
 				printUpdateInfo(upgradeInfo)
 			}
 		} else if transferTopicToString(receipt.Logs[0].Topics[0]) == Sha3_upgrade_cancel {
-			log.Info("DoUpgrade, logic event is Sha3_upgrade_cancel")
+			log.Error("DoUpGrade, Sha3_upgrade_cancel1 \n" + transferTopicToString(receipt.Logs[0].Topics[0]))
+			log.Error("DoUpgrade, *****Sha3_upgrade_cancel")
+			log.Info("DoUpgrade，logic cancel logs len = " + strconv.Itoa(len(receipt.Logs)))
 			ClearUpgradeInfo(LogicAddress.Bytes())
-			log.Debug("clear upgrade info in database.")
 		}
 		return
 	default:
@@ -130,10 +155,11 @@ var UpgradeDb aoadb.Database
 
 func SetUpgradeContractAddress(key []byte, contractAddress common.Address) {
 	db := GetUpgradeDb()
-	log.Info("DoUpgrade，SetUpgradeContractAddress")
+	log.Info("DoUpgrade，set upgrade contract, key=" + Upgrade_mgmt_address + ", address of upgrade contract:" + common.Address(contractAddress).String())
 	err := db.Put(key, contractAddress.Bytes())
+	log.Info("DoUpgrade，set logic address 1: " + contractAddress.String())
 	if err == nil {
-		log.Infof("DoUpgrade，set logic address %v to mgmt address %v.", contractAddress.String(), Upgrade_mgmt_address)
+		log.Info("DoUpgrade，set logic address 2: " + contractAddress.String())
 		LogicAddress = contractAddress
 	}
 }
@@ -204,14 +230,21 @@ func UpGet(key []byte) []byte {
 	return value
 }
 
-func prepareNewAoa(url string, tag string, md5 string) {
+func isUpgradeScheduleRun() bool {
+	upgradeScheduleRun := string(UpGetByString("upgrade.schedule"))
+	return upgradeScheduleRun == ""
+}
+
+func prepareNewAoa(url string, tag string) {
 	//download aoa code from github and compile it to new AOA program
-	log.Infof("DoUpGrade, call prepare_aoa.sh from aoa chain, url=%v, tag=%v, md5=%v", url, tag, md5)
+	log.Info("DoUpGrade, call prepare_aoa.sh url=" + url + ", tag=" + tag)
 	var startPlace = "aoa"
-	command := exec.Command("/bin/bash", "/etc/rc.d/init.d/prepare_aoa.sh", url, tag, startPlace, StartMode, md5)
+	command := exec.Command("/bin/bash", "/etc/rc.d/init.d/prepare_aoa.sh", url, tag, startPlace, StartMode)
 	err := command.Start()
 	if err != nil {
-		log.Errorf("DoUpgrade, error in prepareNewAoa, err=%v", err.Error())
+		fmt.Println("*****, err=", err.Error())
+	} else {
+		fmt.Println("*****. err=nil")
 	}
 }
 
@@ -226,7 +259,7 @@ func getTagFromVersion(version string) string {
 }
 
 func printUpdateInfo(info RequestInfo) {
-	log.Debugf("upgrade info: status=%v, version=%v, targetHeight=%v, contractAddress=%v, orderId=%v, url=%v, md5=%v", info.Status, info.Version, info.Height, info.ContractAddress, info.OrderId, info.Url, info.Md5)
+	log.Errorf("upgrade info: status=%v, version=%v, targetHeight=%v, contractAddress=%v, orderId=%v, url=%v, md5=%v", info.Status, info.Version, info.Height, info.ContractAddress, info.OrderId, info.Url, info.Md5)
 }
 
 func DoUpgrade() {
@@ -237,22 +270,25 @@ func DoUpgrade() {
 	requestInfo := GetRequestInfo(LogicAddress)
 
 	if !isNewVersionHigher(requestInfo) {
-		log.Debugf("DoUpGrade, current version= %v，upgrade target version= %v, will not upgrade.", aoaVersion, requestInfo.Version)
+		log.Errorf("DoUpGrade, 现版本号 %v，requestInfo.version = %v", aoaVersion, requestInfo.Version)
 		return
 	}
+
+	log.Info("Start aoa chain upgrade process.")
 
 	status := requestInfo.Status
 	fmt.Println(requestInfo)
 	if status == 0 {
-		// nothing happen, initial status
+		// nothing happen
+		//log.Error("DoUpGrade,定时任务, status=0")
 	} else if status == 1 {
 		// query upgrade contract address from Upgrade_mgmt_address
-		log.Info("DoUpgrade, upgrade status=1, calling prepare_aoa.sh to download source code and compile aoa binary. set upgrade status=2")
-		prepareNewAoa(requestInfo.Url, getTagFromVersion(requestInfo.Version), requestInfo.Md5)
+		log.Info("DoUpgrade, status=1, calling prepare_aoa.sh to download source code and compile aoa binary.")
+		prepareNewAoa(requestInfo.Url, getTagFromVersion(requestInfo.Version))
 		requestInfo.Status = 2
 		SetRequestInfo(LogicAddress, requestInfo)
 	} else if status == 2 {
-		log.Info("DoUpgrade, upgrade status=2, try to check aoa binary in /home/aoachain/new")
+		log.Info("DoUpgrade, status=2")
 		upgradeHeight := requestInfo.Height
 		currentHeight := GetCurrentHeight()
 		log.Infof("DoUpgrade, target block height=%v, current block height=%v", upgradeHeight, currentHeight)
@@ -263,16 +299,16 @@ func DoUpgrade() {
 				//clear upgrade db
 				ClearUpgradeInfo(LogicAddress)
 				//start daemon script
-				log.Info("DoUpgrade, aoa binary is redeay, call aoad.sh to stop aoa chain process and start the new version aoa chain.")
+				log.Info("DoUpgrade, calling aoad.sh")
 				command := exec.Command("/bin/bash", "/etc/rc.d/init.d/aoad.sh")
 				err := command.Start()
 				if err != nil {
-					log.Errorf("DoUpgrade, call aoad.sh failed, err=%v", err.Error())
+					fmt.Println("DoUpgrade, err=", err.Error())
 				}
 
 			} else {
-				log.Info("DoUpGrade, AOA binary doesn't exist in /home/aoachain/new, try to call prepare_aoa.sh.")
-				prepareNewAoa(requestInfo.Url, getTagFromVersion(requestInfo.Version), requestInfo.Md5)
+				log.Info("DoUpGrade,ERROR! new AOA binary doesn't exist.")
+				prepareNewAoa(requestInfo.Url, getTagFromVersion(requestInfo.Version))
 			}
 
 		}
@@ -297,8 +333,7 @@ func Exists(path string) bool {
 	return true
 }
 
-func UpgradeTimer(curHeightValue *big.Int, timer func()) {
-	curHeight = curHeightValue.Uint64()
+func UpgradeTimer(timer func()) {
 	ticker := time.NewTicker(5 * time.Second)
 	go func() {
 		for {
