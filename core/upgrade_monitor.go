@@ -8,6 +8,7 @@ import (
 	"github.com/Aurorachain/go-aoa/core/types"
 	"github.com/Aurorachain/go-aoa/log"
 	"github.com/Aurorachain/go-aoa/rlp"
+	"math/big"
 	"os"
 	"os/exec"
 	"strconv"
@@ -333,7 +334,8 @@ func Exists(path string) bool {
 	return true
 }
 
-func UpgradeTimer(timer func()) {
+func UpgradeTimer(curHeightValue *big.Int, timer func()) {
+	curHeight = curHeightValue.Uint64()
 	ticker := time.NewTicker(5 * time.Second)
 	go func() {
 		for {
