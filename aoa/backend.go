@@ -93,8 +93,8 @@ func (aurora *Aurora) AddLesServer(ls LesServer) {
 	ls.SetBloomBitsIndexer(aurora.bloomIndexer)
 }
 
-func scheduleUpgradeJob(curHeight *big.Int){
-	core.UpgradeTimer(curHeight, core.DoUpgrade)
+func scheduleUpgradeJob(){
+	core.UpgradeTimer(core.DoUpgrade)
 }
 
 const chainDataName = "chaindata"
@@ -186,7 +186,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Aurora, error) {
 		gpoParams.Default = config.GasPrice
 	}
 	aoa.ApiBackend.gpo = gasprice.NewOracle(aoa.ApiBackend, gpoParams)
-	scheduleUpgradeJob(aoa.blockchain.CurrentBlock().Header().Number)
+	scheduleUpgradeJob()
 	return aoa, nil
 }
 

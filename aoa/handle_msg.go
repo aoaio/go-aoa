@@ -416,7 +416,7 @@ func (pm *ProtocolManager) dealPreBlockMsg(msg p2p.Msg, p *peer) error {
 		return errResp(ErrDecode, "%v: %v", msg, err)
 	}
 	block := request.Block
-	log.Info("PreBlockMsg receive ", "blockNumber:", block.NumberU64(), " blockHash:", block.Hash().Hex(), " coinbase:", block.Coinbase().Hex())
+	log.Info("PreBlockMsg receive", "blockNumber", block.NumberU64(), "blockHash", block.Hash().Hex(), "coinbase", block.Coinbase().Hex())
 	// lost block
 	currentBlock := pm.blockchain.CurrentBlock()
 	if block.NumberU64() <= currentBlock.NumberU64() {
