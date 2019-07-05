@@ -206,7 +206,7 @@ func (l *lockManager) dealBlockSign(storeSign *storeSigns) {
 		signMap = newBlockSignMap()
 		signMap.put(address, types.VoteSign{Sign: storeSign.sign, VoteAction: storeSign.action})
 		l.signMap.put(blockHashHex, signMap)
-		log.Info("lockBlockManager|add sign success", "blockHash", blockHashHex, "signLength", len(signMap.data), "approveVoteCount", signMap.countApproveVote())
+		log.Info("lockBlockManager|add sign success", " blockHash=", blockHashHex, " signLength=", len(signMap.data), " approveVoteCount=", signMap.countApproveVote())
 		timeOutTask := &task.OnTimeOut{
 			Callback: func(ctx context.Context) {
 				l.signMap.delete(blockHashHex)
@@ -223,12 +223,12 @@ func (l *lockManager) dealBlockSign(storeSign *storeSigns) {
 		if !signMap.exist(address) {
 			signMap.put(address, types.VoteSign{Sign: storeSign.sign, VoteAction: storeSign.action})
 			// l.signMap.put(blockHashHex, signMap)
-			log.Info("lockBlockManager|add sign success", "blockHash", blockHashHex, "signLength", len(signMap.data), "approveVoteCount", signMap.approveVotes)
+			log.Info("lockBlockManager|add sign success", " blockHash=", blockHashHex, " signLength=", len(signMap.data), " approveVoteCount=", signMap.approveVotes)
 		}
 
 	}
 	if signMap.countApproveVote() > uint64(delegateAmount) {
-		log.Info("lockBlockManager|collect 2/3 sign success", "blockHash", blockHashHex, "signLength", len(signMap.data))
+		log.Info("lockBlockManager|collect 2/3 sign success", " blockHash=", blockHashHex, " signLength=", len(signMap.data))
 		signs := make([]types.VoteSign, 0, delegateAmount+1)
 		approveVoteCount := 0
 		for _, v := range signMap.data {
@@ -246,12 +246,12 @@ func (l *lockManager) dealBlockSign(storeSign *storeSigns) {
 }
 
 func (l *lockManager) blockGenerateCallback(signs []types.VoteSign, blockHash string) {
-	log.Info("lockBlockManager|blockGenerateCallback|start", "blockHash", blockHash, "lenSign", len(signs))
+	log.Info("lockBlockManager|blockGenerateCallback|start", " blockHash=", blockHash, " lenSign=", len(signs))
 	pendingBlock := l.getPendingBlock()
 	// go l.blockSignCallback(signs, blockHash)
 	if pendingBlock != nil {
 		block := pendingBlock.block
-		log.Info("lockManager|blockGenerateSuccess", "blockNumber", block.NumberU64(), "blockHash", blockHash, "coinbase", block.Coinbase().Hex(), "consensus cost time(s)", time.Now().Unix()-block.Time().Int64())
+		log.Info("lockManager|blockGenerateSuccess", " blockNumber=", block.NumberU64(), " blockHash=", blockHash, " coinbase=", block.Coinbase().Hex(), " consensus cost time(s):", time.Now().Unix()-block.Time().Int64())
 		if strings.EqualFold(block.Hash().Hex(), blockHash) {
 			err := l.newBlockCallback(signs, block)
 			// cancel expire task
@@ -264,7 +264,7 @@ func (l *lockManager) blockGenerateCallback(signs []types.VoteSign, blockHash st
 			}
 		}
 	} else {
-		log.Error("lockBlockManager|blockGenerateCallback|end|pendingBlock is null", "blockHash", blockHash)
+		log.Error("lockBlockManager|blockGenerateCallback|end|pendingBlock is null", " blockHash=", blockHash)
 	}
 }
 
