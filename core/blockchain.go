@@ -256,9 +256,9 @@ func (bc *BlockChain) loadLastState() error {
 	blockTd := bc.GetTd(bc.currentBlock.Hash(), bc.currentBlock.NumberU64())
 	fastTd := bc.GetTd(bc.currentFastBlock.Hash(), bc.currentFastBlock.NumberU64())
 
-	log.Infof("Loaded most recent local header, number=%s, hash=%s, td=%s", currentHeader.Number, currentHeader.Hash().Hex(),headerTd)
+	log.Infof("Loaded most recent local header, number=%s, hash=%s, td=%s", currentHeader.Number, currentHeader.Hash().Hex(), headerTd)
 	log.Infof("Loaded most recent local full block, number=%s, hash=%s, td=%s", bc.currentBlock.Number(), bc.currentBlock.Hash().Hex(), blockTd)
-	log.Infof("Loaded most recent local fast block, number=%s, hash=%s, td=%s", bc.currentFastBlock.Number(), bc.currentFastBlock.Hash().Hex(),fastTd)
+	log.Infof("Loaded most recent local fast block, number=%s, hash=%s, td=%s", bc.currentFastBlock.Number(), bc.currentFastBlock.Hash().Hex(), fastTd)
 
 	return nil
 }
@@ -311,7 +311,7 @@ func (bc *BlockChain) SetHead(head uint64) error {
 		bc.currentFastBlock = bc.genesisBlock
 	}
 	if err := WriteHeadBlockHash(bc.chainDb, bc.currentBlock.Hash()); err != nil {
-		log.Error("Failed to reset head full block, err=%s",  err)
+		log.Error("Failed to reset head full block, err=%s", err)
 	}
 	if err := WriteHeadFastBlockHash(bc.chainDb, bc.currentFastBlock.Hash()); err != nil {
 		log.Error("Failed to reset head fast block, err=%s", err)
@@ -673,9 +673,9 @@ func (bc *BlockChain) procFutureBlocks() {
 type WriteStatus byte
 
 const (
-	NonStatTy   WriteStatus = iota
-	CanonStatTy 
-	SideStatTy  
+	NonStatTy WriteStatus = iota
+	CanonStatTy
+	SideStatTy
 )
 
 // Rollback is designed to remove a chain of links from the database that aren't
@@ -1233,8 +1233,7 @@ func (st *insertStats) report(chain []*types.Block, index int) bool {
 		if st.ignored > 0 {
 			context = append(context, []interface{}{"ignored", st.ignored}...)
 		}
-		log.Info("Imported new chain segment")
-		log.Info(context...)
+		log.Info("Imported new chain segment=", context)
 		// TODO 在这里同步完成
 		*st = insertStats{startTime: now, lastIndex: index + 1}
 		return true
