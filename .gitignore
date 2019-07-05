@@ -7,6 +7,7 @@
 */**/*tx_database*
 */**/*dapps*
 build/_vendor/pkg
+build/_workspace
 
 #*
 .#*
