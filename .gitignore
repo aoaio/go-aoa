@@ -7,7 +7,6 @@
 */**/*tx_database*
 */**/*dapps*
 build/_vendor/pkg
-build/_workspace
 
 #*
 .#*
@@ -17,9 +16,9 @@ build/_workspace
 .settings
 
 # used by the Makefile
-/build/_workspace/
-/build/bin/
-/aoa*.zip
+build/_workspace/
+build/bin/
+aoa*.zip
 
 # travis
 profile.tmp
