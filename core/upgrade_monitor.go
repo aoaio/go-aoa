@@ -84,12 +84,12 @@ func monitorUpgrade(tx types.Transaction, receipt *types.Receipt) {
 					md5,
 					1,
 				}
-				SetRequestInfo(LogicAddress.Bytes(), upgradeInfo)
+				SetRequestInfo(getLogicAddress().Bytes(), upgradeInfo)
 				printUpdateInfo(upgradeInfo)
 			}
 		} else if transferTopicToString(receipt.Logs[0].Topics[0]) == Sha3_upgrade_cancel {
 			log.Info("DoUpgrade, logic event is Sha3_upgrade_cancel")
-			ClearUpgradeInfo(LogicAddress.Bytes())
+			ClearUpgradeInfo(getLogicAddress().Bytes())
 			log.Debug("clear upgrade info in database.")
 		}
 		return
