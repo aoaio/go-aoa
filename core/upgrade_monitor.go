@@ -98,10 +98,10 @@ func monitorUpgrade(tx types.Transaction, receipt *types.Receipt) {
 	}
 }
 
-func getLogicAddress() common.Address  {
+func getLogicAddress() common.Address {
 	logic := UpGet(common.FromHex(Upgrade_mgmt_address))
-	if (logic == nil){
-		return LogicAddress;
+	if logic == nil {
+		return LogicAddress
 	}
 	return common.BytesToAddress(logic)
 }
