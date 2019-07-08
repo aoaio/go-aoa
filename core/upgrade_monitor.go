@@ -44,7 +44,7 @@ func monitorUpgrade(tx types.Transaction, receipt *types.Receipt) {
 	}()
 
 	if receipt.Status == 0 || receipt.Logs == nil || len(receipt.Logs) == 0 {
-		log.Error("DoUpGrade, receipt error.")
+		//log.Error("DoUpGrade, receipt error.")
 		return
 	}
 	switch *tx.To() {
