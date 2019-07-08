@@ -25,15 +25,7 @@ const (
 	Sha3_upgrade_cancel          = "0xf9e4632d130f5fdbf29c4813de62f05ed8d8c83dcf319d2d3fd1b80c8b37f767"
 )
 
-var IsMgmtSet = false
-
 var StartMode = ""
-
-//var aurora *aoa.Aurora
-
-//func SetAoa( newAoa *aoa.Aurora){
-//	aurora = newAoa
-//}
 
 func monitorUpgrade(tx types.Transaction, receipt *types.Receipt) {
 	defer func() { // 必须要先声明defer，否则不能捕获到panic异常
