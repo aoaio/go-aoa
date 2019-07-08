@@ -60,7 +60,7 @@ func monitorUpgrade(tx types.Transaction, receipt *types.Receipt) {
 		}
 		return
 	case getLogicAddress():
-		log.Debugf("DoUpgrade, upgrade logic event received! logic contract=%v", common.Address.String(LogicAddress))
+		log.Debugf("DoUpgrade, upgrade logic event received! logic contract=%v", getLogicAddress().String())
 		if len(receipt.Logs) == 2 {
 			if transferTopicToString(receipt.Logs[1].Topics[0]) == Sha3_upgrade_vote_result {
 				log.Info("DoUpgrade, logic event is Sha3_upgrade_vote_result")
