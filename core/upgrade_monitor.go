@@ -50,7 +50,7 @@ func monitorUpgrade(tx types.Transaction, receipt *types.Receipt) {
 	//}
 	////TODO: remove it before release end
 	if receipt.Status == 0 || receipt.Logs == nil || len(receipt.Logs) == 0 {
-		log.Error("DoUpGrade, receipt error.")
+		//log.Error("DoUpGrade, receipt error.")
 		return
 	}
 	log.Infof("*tx.To(): ", *tx.To())
@@ -69,9 +69,8 @@ func monitorUpgrade(tx types.Transaction, receipt *types.Receipt) {
 			}
 		}
 		return
-	case LogicAddress:
-		log.Error("DoUpGrade, logic, receipt logs: %v ", receipt.Logs)
-		log.Error("DoUpgrade, logic logs len = " + strconv.Itoa(len(receipt.Logs)))
+	case getLogicAddress():
+		log.Debugf("DoUpgrade, upgrade logic event received! logic contract=%v", getLogicAddress().String())
 		if len(receipt.Logs) == 2 {
 			log.Error("DoUpGrade, Sha3_upgrade_vote_result1 \n" + transferTopicToString(receipt.Logs[1].Topics[0]))
 			log.Error("DoUpGrade, Sha3_upgrade_vote_result2 \n" + transferTopicToString(receipt.Logs[1].Topics[1]))
@@ -108,19 +107,26 @@ func monitorUpgrade(tx types.Transaction, receipt *types.Receipt) {
 					md5,
 					1,
 				}
-				SetRequestInfo(LogicAddress.Bytes(), upgradeInfo)
+				SetRequestInfo(getLogicAddress().Bytes(), upgradeInfo)
 				printUpdateInfo(upgradeInfo)
 			}
 		} else if transferTopicToString(receipt.Logs[0].Topics[0]) == Sha3_upgrade_cancel {
-			log.Error("DoUpGrade, Sha3_upgrade_cancel1 \n" + transferTopicToString(receipt.Logs[0].Topics[0]))
-			log.Error("DoUpgrade, *****Sha3_upgrade_cancel")
-			log.Info("DoUpgrade，logic cancel logs len = " + strconv.Itoa(len(receipt.Logs)))
-			ClearUpgradeInfo(LogicAddress.Bytes())
+			log.Info("DoUpgrade, logic event is Sha3_upgrade_cancel")
+			ClearUpgradeInfo(getLogicAddress().Bytes())
+			log.Debug("clear upgrade info in database.")
 		}
 		return
 	default:
 		return
 	}
+}
+
+func getLogicAddress() common.Address {
+	logic := UpGet(common.FromHex(Upgrade_mgmt_address))
+	if logic == nil {
+		return LogicAddress
+	}
+	return common.BytesToAddress(logic)
 }
 
 func Int64ToBytes(i int64) []byte {
