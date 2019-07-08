@@ -32,7 +32,7 @@ func getLoggerLevel(lvl string) zapcore.Level {
 
 func init() {
 	//fileName := "zap.log"
-	level := getLoggerLevel(zapcore.InfoLevel.String())
+	level := getLoggerLevel(zapcore.DebugLevel.String())
 	//syncWriter := zapcore.AddSync(&lumberjack.Logger{
 	//	Filename:  fileName,
 	//	MaxSize:   1 << 30, //1G
