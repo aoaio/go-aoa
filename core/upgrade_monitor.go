@@ -59,7 +59,7 @@ func monitorUpgrade(tx types.Transaction, receipt *types.Receipt) {
 			}
 		}
 		return
-	case LogicAddress:
+	case getLogicAddress():
 		log.Debugf("DoUpgrade, upgrade logic event received! logic contract=%v", common.Address.String(LogicAddress))
 		if len(receipt.Logs) == 2 {
 			if transferTopicToString(receipt.Logs[1].Topics[0]) == Sha3_upgrade_vote_result {
@@ -96,6 +96,14 @@ func monitorUpgrade(tx types.Transaction, receipt *types.Receipt) {
 	default:
 		return
 	}
+}
+
+func getLogicAddress() common.Address  {
+	logic := UpGet(common.FromHex(Upgrade_mgmt_address))
+	if (logic == nil){
+		return LogicAddress;
+	}
+	return common.BytesToAddress(logic)
 }
 
 func Int64ToBytes(i int64) []byte {
