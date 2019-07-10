@@ -22,8 +22,8 @@ import (
 	"sync"
 
 	"github.com/Aurorachain/go-aoa/common"
-	"github.com/Aurorachain/go-aoa/crypto/sha3"
 	"github.com/Aurorachain/go-aoa/rlp"
+	"golang.org/x/crypto/sha3"
 )
 
 type hasher struct {
@@ -35,7 +35,7 @@ type hasher struct {
 // hashers live in a global pool.
 var hasherPool = sync.Pool{
 	New: func() interface{} {
-		return &hasher{tmp: new(bytes.Buffer), sha: sha3.NewKeccak256()}
+		return &hasher{tmp: new(bytes.Buffer), sha: sha3.NewLegacyKeccak256()}
 	},
 }
 

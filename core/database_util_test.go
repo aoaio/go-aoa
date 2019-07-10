@@ -25,7 +25,6 @@ import (
 	"github.com/Aurorachain/go-aoa/aoadb"
 	"github.com/Aurorachain/go-aoa/common"
 	"github.com/Aurorachain/go-aoa/core/types"
-	"github.com/Aurorachain/go-aoa/crypto/sha3"
 	"github.com/Aurorachain/go-aoa/rlp"
 	"time"
 )
@@ -64,7 +63,7 @@ func TestHeaderStorage(t *testing.T) {
 	if entry := GetHeaderRLP(db, header.Hash(), header.Number.Uint64()); entry == nil {
 		t.Fatalf("Stored header RLP not found")
 	} else {
-		hasher := sha3.NewKeccak256()
+		hasher := sha3.NewLegacyKeccak256()
 		hasher.Write(entry)
 
 		if hash := common.BytesToHash(hasher.Sum(nil)); hash != header.Hash() {
@@ -85,7 +84,7 @@ func TestBodyStorage(t *testing.T) {
 	// Create a test body to move around the database and make sure it's really new
 	body := &types.Body{}
 
-	hasher := sha3.NewKeccak256()
+	hasher := sha3.NewLegacyKeccak256()
 	rlp.Encode(hasher, body)
 	hash := common.BytesToHash(hasher.Sum(nil))
 
@@ -104,7 +103,7 @@ func TestBodyStorage(t *testing.T) {
 	if entry := GetBodyRLP(db, hash, 0); entry == nil {
 		t.Fatalf("Stored body RLP not found")
 	} else {
-		hasher := sha3.NewKeccak256()
+		hasher := sha3.NewLegacyKeccak256()
 		hasher.Write(entry)
 
 		if calc := common.BytesToHash(hasher.Sum(nil)); calc != hash {

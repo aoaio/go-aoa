@@ -27,13 +27,13 @@ import (
 	"github.com/Aurorachain/go-aoa/core/types"
 	"github.com/Aurorachain/go-aoa/crypto"
 	"github.com/Aurorachain/go-aoa/crypto/secp256k1"
-	"github.com/Aurorachain/go-aoa/crypto/sha3"
 	"github.com/Aurorachain/go-aoa/log"
 	"github.com/Aurorachain/go-aoa/node"
 	"github.com/Aurorachain/go-aoa/rlp"
 	"github.com/Aurorachain/go-aoa/task"
 	"github.com/Aurorachain/go-aoa/util"
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/sha3"
 	"math/big"
 	"strings"
 	"sync"
@@ -115,7 +115,7 @@ func NewDposTaskManager(ctx *node.ServiceContext, blockchain *core.BlockChain, a
 			topDelegates = topDelegates[:maxElectDelegate]
 		}
 		for _, v := range candidates {
-			log.Infof("shuffle candidate, blockNumber=%d, address=%s, vote=%d, nickName=%s, registerTime=%v", currentBlock.NumberU64(),  v.Address, v.Vote, v.Nickname, time.Unix(int64(v.RegisterTime), 0))
+			log.Infof("shuffle candidate, blockNumber=%d, address=%s, vote=%d, nickName=%s, registerTime=%v", currentBlock.NumberU64(), v.Address, v.Vote, v.Nickname, time.Unix(int64(v.RegisterTime), 0))
 		}
 		shuffleNewRound := util.ShuffleNewRound(shuffleTime, maxElectDelegate, topDelegates, int64(blockInterval))
 		shuffleData := types.ShuffleDelegateData{BlockNumber: *currentBlock.Number(), ShuffleTime: *big.NewInt(shuffleTime)}
@@ -411,7 +411,7 @@ func generateNextRoundBeginTime(genesisBlockTime int64) (int64, error) {
 }
 
 func rlpHash(x interface{}) (h common.Hash) {
-	hw := sha3.NewKeccak256()
+	hw := sha3.NewLegacyKeccak256()
 	rlp.Encode(hw, x)
 	hw.Sum(h[:0])
 	return h

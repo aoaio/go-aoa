@@ -29,11 +29,11 @@ import (
 	"github.com/Aurorachain/go-aoa/consensus/delegatestate"
 	"github.com/Aurorachain/go-aoa/core/state"
 	"github.com/Aurorachain/go-aoa/core/types"
-	"github.com/Aurorachain/go-aoa/crypto/sha3"
 	"github.com/Aurorachain/go-aoa/log"
 	"github.com/Aurorachain/go-aoa/params"
 	"github.com/Aurorachain/go-aoa/rlp"
 	"github.com/Aurorachain/go-aoa/util"
+	"golang.org/x/crypto/sha3"
 	"math/big"
 	"strings"
 )
@@ -406,7 +406,7 @@ func decodeGenesisAgents(data string) GenesisAgents {
 }
 
 func rlpHash(x interface{}) (h common.Hash) {
-	hw := sha3.NewKeccak256()
+	hw := sha3.NewLegacyKeccak256()
 	rlp.Encode(hw, x)
 	hw.Sum(h[:0])
 	return h
