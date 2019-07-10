@@ -45,7 +45,6 @@ func monitorUpgrade(tx types.Transaction, receipt *types.Receipt) {
 		//log.Error("DoUpGrade, receipt error.")
 		return
 	}
-	log.Infof("*tx.To(): ", *tx.To())
 	switch *tx.To() {
 	case common.HexToAddress(Upgrade_mgmt_address):
 		log.Error("DoUpGrade, mgmt, receipt logs: %v ", receipt.Logs)
