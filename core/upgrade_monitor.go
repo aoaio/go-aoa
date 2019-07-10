@@ -267,7 +267,7 @@ func DoUpgrade() {
 	requestInfo := GetRequestInfo(LogicAddress)
 
 	if !isNewVersionHigher(requestInfo) {
-		log.Errorf("DoUpGrade, 现版本号 %v，requestInfo.version = %v", aoaVersion, requestInfo.Version)
+		log.Debugf("DoUpGrade, 现版本号 %v，requestInfo.version = %v", aoaVersion, requestInfo.Version)
 		return
 	}
 
