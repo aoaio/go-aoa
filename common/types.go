@@ -24,7 +24,7 @@ import (
 	"reflect"
 
 	"github.com/Aurorachain/go-aoa/common/hexutil"
-	"github.com/Aurorachain/go-aoa/crypto/sha3"
+	"golang.org/x/crypto/sha3"
 	"strings"
 )
 
@@ -178,7 +178,7 @@ func (a Address) Hash() Hash    { return BytesToHash(a[:]) }
 // Hex returns an EIP55-compliant hex string representation of the address.
 func (a Address) Hex() string {
 	//unchecksummed := hex.EncodeToString(a[:])
-	//sha := sha3.NewKeccak256()
+	//sha := sha3.NewLegacyKeccak256()
 	//sha.Write([]byte(unchecksummed))
 	//hash := sha.Sum(nil)
 	//
@@ -196,7 +196,7 @@ func (a Address) Hex() string {
 	//}
 	//return "0x" + string(result)
 	unchecksummed := hex.EncodeToString(a[:])
-	sha := sha3.NewKeccak256()
+	sha := sha3.NewLegacyKeccak256()
 	sha.Write([]byte(unchecksummed))
 	hash := sha.Sum(nil)
 
@@ -217,7 +217,7 @@ func (a Address) Hex() string {
 
 func (a Address) AoaHex() string {
 	unchecksummed := hex.EncodeToString(a[:])
-	sha := sha3.NewKeccak256()
+	sha := sha3.NewLegacyKeccak256()
 	sha.Write([]byte(unchecksummed))
 	hash := sha.Sum(nil)
 

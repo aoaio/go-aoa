@@ -22,9 +22,9 @@ import (
 	"fmt"
 
 	"github.com/Aurorachain/go-aoa/common"
-	"github.com/Aurorachain/go-aoa/crypto/sha3"
 	"github.com/Aurorachain/go-aoa/log"
 	"github.com/rcrowley/go-metrics"
+	"golang.org/x/crypto/sha3"
 )
 
 var (
@@ -54,7 +54,7 @@ func CacheUnloads() int64 {
 }
 
 func init() {
-	sha3.NewKeccak256().Sum(emptyState[:0])
+	sha3.NewLegacyKeccak256().Sum(emptyState[:0])
 }
 
 // Database must be implemented by backing stores for the trie.
