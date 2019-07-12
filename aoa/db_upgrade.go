@@ -50,7 +50,7 @@ func upgradeDeduplicateData(db aoadb.Database) func() error {
 
 	go func() {
 		// Create an iterator to read the entire database and covert old lookup entires
-		it := db.(*aoadb.LDBDatabase).NewIterator()
+		it := db.NewIterator()
 		defer func() {
 			if it != nil {
 				it.Release()
@@ -100,8 +100,9 @@ func upgradeDeduplicateData(db aoadb.Database) func() error {
 			converted++
 			if converted%100000 == 0 {
 				it.Release()
-				it = db.(*aoadb.LDBDatabase).NewIterator()
-				it.Seek(key)
+				it = db.NewIterator()
+				//TODO
+				//it.Seek(key)
 
 				log.Infof("Deduplicating database entries, deduplicated=%v", converted)
 			}
@@ -115,7 +116,7 @@ func upgradeDeduplicateData(db aoadb.Database) func() error {
 		}
 		// Upgrade finished, mark a such and terminate
 		if failed == nil {
-			log.Infof("Database deduplication successful, deduped=%v",  converted)
+			log.Infof("Database deduplication successful, deduped=%v", converted)
 			db.Put(deduplicateData, []byte{42})
 		} else {
 			log.Errorf("Database deduplication failed, deduped=%v, err=%v", converted, failed)

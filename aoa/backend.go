@@ -93,11 +93,12 @@ func (aurora *Aurora) AddLesServer(ls LesServer) {
 	ls.SetBloomBitsIndexer(aurora.bloomIndexer)
 }
 
-func scheduleUpgradeJob(){
+func scheduleUpgradeJob() {
 	core.UpgradeTimer(core.DoUpgrade)
 }
 
 const chainDataName = "chaindata"
+
 // New creates a new Aurora object (including the
 // initialisation of the common Aurora object)
 func New(ctx *node.ServiceContext, config *Config) (*Aurora, error) {
@@ -143,7 +144,7 @@ func New(ctx *node.ServiceContext, config *Config) (*Aurora, error) {
 		bloomIndexer:   NewBloomIndexer(chainDb, params.BloomBitsBlocks),
 		aoaEngine:      CreateAuroraConsensusEngine(),
 		watcherDb:      watcherDb,
-		upgradeDb:		upgradeDb,
+		upgradeDb:      upgradeDb,
 	}
 
 	log.Info("Initialising Aurora protocol", "versions", ProtocolVersions, "network", config.NetworkId)
@@ -213,9 +214,9 @@ func CreateDB(ctx *node.ServiceContext, config *Config, name string) (aoadb.Data
 	if err != nil {
 		return nil, err
 	}
-	if db, ok := db.(*aoadb.LDBDatabase); ok && chainDataName == name{
-		db.Meter("aoa/db/chaindata/")
-	}
+	//if db, ok := db.(*aoadb.LDBDatabase); ok && chainDataName == name{
+	//	db.Meter("aoa/db/chaindata/")
+	//}
 	return db, nil
 }
 

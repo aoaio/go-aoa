@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/Aurorachain/go-aoa/aoadb/dbinterface"
 	"io/ioutil"
 	"runtime"
 	"sync"
@@ -96,14 +97,37 @@ type txTraceTask struct {
 // state tries for intermediate blocks without serializing to disk, but at the
 // same time to allow disk fallback for reads that do no hit the memory layer.
 type ephemeralDatabase struct {
-	diskdb aoadb.Database     // Persistent disk database to fall back to with reads
-	memdb  *aoadb.MemDatabase // Ephemeral memory database for primary reads and writes
+	diskdb aoadb.Database    // Persistent disk database to fall back to with reads
+	memdb  aoadb.MemDatabase // Ephemeral memory database for primary reads and writes
+}
+
+func (db *ephemeralDatabase) Close() error {
+	return db.memdb.Close()
+}
+
+func (db *ephemeralDatabase) Compact(start []byte, limit []byte) error {
+	panic("implement me")
+}
+
+func (db *ephemeralDatabase) NewIterator() dbinterface.Iterator {
+	panic("implement me")
+}
+
+func (db *ephemeralDatabase) NewIteratorWithPrefix(prefix []byte) dbinterface.Iterator {
+	panic("implement me")
+}
+
+func (db *ephemeralDatabase) NewIteratorWithStart(start []byte) dbinterface.Iterator {
+	panic("implement me")
+}
+
+func (db *ephemeralDatabase) Stat(property string) (string, error) {
+	panic("implement me")
 }
 
 func (db *ephemeralDatabase) Put(key []byte, value []byte) error { return db.memdb.Put(key, value) }
 func (db *ephemeralDatabase) Delete(key []byte) error            { return errors.New("delete not supported") }
-func (db *ephemeralDatabase) Close()                             { db.memdb.Close() }
-func (db *ephemeralDatabase) NewBatch() aoadb.Batch {
+func (db *ephemeralDatabase) NewBatch() dbinterface.Batch {
 	return db.memdb.NewBatch()
 }
 func (db *ephemeralDatabase) Has(key []byte) (bool, error) {

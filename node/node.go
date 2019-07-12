@@ -637,7 +637,7 @@ func (n *Node) OpenDatabase(name string, cache, handles int) (aoadb.Database, er
 	if n.config.DataDir == "" {
 		return aoadb.NewMemDatabase()
 	}
-	return aoadb.NewLDBDatabase(n.config.resolvePath(name), cache, handles)
+	return aoadb.NewLevelDBDatabase(n.config.resolvePath(name), cache, handles)
 }
 
 // ResolvePath returns the absolute path of a resource in the instance directory.

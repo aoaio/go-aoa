@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Aurorachain/go-aoa/aoadb/dbinterface"
 	"math/big"
 
 	"github.com/Aurorachain/go-aoa/aoadb"
@@ -58,8 +59,8 @@ var (
 	lookupPrefix        = []byte("l") // lookupPrefix + hash -> transaction/receipt lookup metadata
 	bloomBitsPrefix     = []byte("B") // bloomBitsPrefix + bit (uint16 big endian) + section (uint64 big endian) + hash -> bloom bits
 
-	preimagePrefix = "secure-key-"              // preimagePrefix + hash -> preimage
-	configPrefix   = []byte("aurora-config-") 	// config prefix for the db
+	preimagePrefix = "secure-key-"            // preimagePrefix + hash -> preimage
+	configPrefix   = []byte("aurora-config-") // config prefix for the db
 
 	// Chain index prefixes (use `i` + single byte to avoid mixing data walletType).
 	BloomBitsIndexPrefix = []byte("iB") // BloomBitsIndexPrefix is the data table of a chain indexer to track its progress
@@ -345,7 +346,7 @@ func GetBloomBits(db DatabaseReader, bit uint, section uint64, head common.Hash)
 }
 
 // WriteCanonicalHash stores the canonical hash for the given block number.
-func WriteCanonicalHash(db aoadb.Putter, hash common.Hash, number uint64) error {
+func WriteCanonicalHash(db aoadb.Database, hash common.Hash, number uint64) error {
 	key := append(append(headerPrefix, encodeBlockNumber(number)...), numSuffix...)
 	if err := db.Put(key, hash.Bytes()); err != nil {
 		log.Error("Failed to store number to hash mapping", "err", err)
@@ -354,7 +355,7 @@ func WriteCanonicalHash(db aoadb.Putter, hash common.Hash, number uint64) error 
 }
 
 // WriteHeadHeaderHash stores the head header's hash.
-func WriteHeadHeaderHash(db aoadb.Putter, hash common.Hash) error {
+func WriteHeadHeaderHash(db aoadb.Database, hash common.Hash) error {
 	if err := db.Put(headHeaderKey, hash.Bytes()); err != nil {
 		log.Error("Failed to store last header's hash", "err", err)
 	}
@@ -362,7 +363,7 @@ func WriteHeadHeaderHash(db aoadb.Putter, hash common.Hash) error {
 }
 
 // WriteHeadBlockHash stores the head block's hash.
-func WriteHeadBlockHash(db aoadb.Putter, hash common.Hash) error {
+func WriteHeadBlockHash(db aoadb.Database, hash common.Hash) error {
 	if err := db.Put(headBlockKey, hash.Bytes()); err != nil {
 		log.Error("Failed to store last block's hash", "err", err)
 	}
@@ -370,7 +371,7 @@ func WriteHeadBlockHash(db aoadb.Putter, hash common.Hash) error {
 }
 
 // WriteHeadFastBlockHash stores the fast head block's hash.
-func WriteHeadFastBlockHash(db aoadb.Putter, hash common.Hash) error {
+func WriteHeadFastBlockHash(db aoadb.Database, hash common.Hash) error {
 	if err := db.Put(headFastKey, hash.Bytes()); err != nil {
 		log.Error("Failed to store last fast block's hash", "err", err)
 	}
@@ -378,7 +379,7 @@ func WriteHeadFastBlockHash(db aoadb.Putter, hash common.Hash) error {
 }
 
 // WriteHeader serializes a block header into the database.
-func WriteHeader(db aoadb.Putter, header *types.Header) error {
+func WriteHeader(db dbinterface.KeyValueWriter, header *types.Header) error {
 	data, err := rlp.EncodeToBytes(header)
 	if err != nil {
 		return err
@@ -398,7 +399,7 @@ func WriteHeader(db aoadb.Putter, header *types.Header) error {
 }
 
 // WriteBody serializes the body of a block into the database.
-func WriteBody(db aoadb.Putter, hash common.Hash, number uint64, body *types.Body) error {
+func WriteBody(db dbinterface.KeyValueWriter, hash common.Hash, number uint64, body *types.Body) error {
 	data, err := rlp.EncodeToBytes(body)
 	if err != nil {
 		return err
@@ -407,7 +408,7 @@ func WriteBody(db aoadb.Putter, hash common.Hash, number uint64, body *types.Bod
 }
 
 // WriteBodyRLP writes a serialized body of a block into the database.
-func WriteBodyRLP(db aoadb.Putter, hash common.Hash, number uint64, rlp rlp.RawValue) error {
+func WriteBodyRLP(db dbinterface.KeyValueWriter, hash common.Hash, number uint64, rlp rlp.RawValue) error {
 	key := append(append(bodyPrefix, encodeBlockNumber(number)...), hash.Bytes()...)
 	if err := db.Put(key, rlp); err != nil {
 		log.Error("Failed to store block body", "err", err)
@@ -416,7 +417,7 @@ func WriteBodyRLP(db aoadb.Putter, hash common.Hash, number uint64, rlp rlp.RawV
 }
 
 // WriteTd serializes the total difficulty of a block into the database.
-func WriteTd(db aoadb.Putter, hash common.Hash, number uint64, td *big.Int) error {
+func WriteTd(db aoadb.Database, hash common.Hash, number uint64, td *big.Int) error {
 	data, err := rlp.EncodeToBytes(td)
 	if err != nil {
 		return err
@@ -429,7 +430,7 @@ func WriteTd(db aoadb.Putter, hash common.Hash, number uint64, td *big.Int) erro
 }
 
 // WriteBlock serializes a block into the database, header and body separately.
-func WriteBlock(db aoadb.Putter, block *types.Block) error {
+func WriteBlock(db dbinterface.KeyValueWriter, block *types.Block) error {
 	// Store the body first to retain database consistency
 	if err := WriteBody(db, block.Hash(), block.NumberU64(), block.Body()); err != nil {
 		return err
@@ -444,7 +445,7 @@ func WriteBlock(db aoadb.Putter, block *types.Block) error {
 // WriteBlockReceipts stores all the transaction receipts belonging to a block
 // as a single receipt slice. This is used during chain reorganisations for
 // rescheduling dropped transactions.
-func WriteBlockReceipts(db aoadb.Putter, hash common.Hash, number uint64, receipts types.Receipts) error {
+func WriteBlockReceipts(db dbinterface.KeyValueWriter, hash common.Hash, number uint64, receipts types.Receipts) error {
 	// Convert the receipts into their storage form and serialize them
 	storageReceipts := make([]*types.ReceiptForStorage, len(receipts))
 	for i, receipt := range receipts {
@@ -464,7 +465,7 @@ func WriteBlockReceipts(db aoadb.Putter, hash common.Hash, number uint64, receip
 
 // WriteTxLookupEntries stores a positional metadata for every transaction from
 // a block, enabling hash based transaction and receipt lookups.
-func WriteTxLookupEntries(db aoadb.Putter, block *types.Block) error {
+func WriteTxLookupEntries(db dbinterface.KeyValueWriter, block *types.Block) error {
 	// Iterate over each transaction and encode its metadata
 	for i, tx := range block.Transactions() {
 		entry := TxLookupEntry{
@@ -485,7 +486,7 @@ func WriteTxLookupEntries(db aoadb.Putter, block *types.Block) error {
 
 // WriteBloomBits writes the compressed bloom bits vector belonging to the given
 // section and bit index.
-func WriteBloomBits(db aoadb.Putter, bit uint, section uint64, head common.Hash, bits []byte) {
+func WriteBloomBits(db dbinterface.Batch, bit uint, section uint64, head common.Hash, bits []byte) {
 	key := append(append(bloomBitsPrefix, make([]byte, 10)...), head.Bytes()...)
 
 	binary.BigEndian.PutUint16(key[1:], uint16(bit))
@@ -497,7 +498,7 @@ func WriteBloomBits(db aoadb.Putter, bit uint, section uint64, head common.Hash,
 }
 
 // WriteDelegateBodyRLP writes a serialized body of delegate data into the database
-func WriteDelegateBodyRLP(db aoadb.Putter, rlp rlp.RawValue) error {
+func WriteDelegateBodyRLP(db dbinterface.Batch, rlp rlp.RawValue) error {
 	key := []byte(datagateDataPrefix)
 	if err := db.Put(key, rlp); err != nil {
 		log.Error("Failed to store delegate data", "err", err)
@@ -505,7 +506,7 @@ func WriteDelegateBodyRLP(db aoadb.Putter, rlp rlp.RawValue) error {
 	return nil
 }
 
-func WriteDelegateShuffleBlockHeightRLP(db aoadb.Putter, rlp rlp.RawValue) error {
+func WriteDelegateShuffleBlockHeightRLP(db aoadb.Database, rlp rlp.RawValue) error {
 	key := []byte(delegateStorePrefix)
 	if err := db.Put(key, rlp); err != nil {
 		log.Error("Failed to store delegate block number", "err", err)
@@ -588,13 +589,13 @@ func GetBlockChainVersion(db DatabaseReader) int {
 }
 
 // WriteBlockChainVersion writes vsn as the version number to db.
-func WriteBlockChainVersion(db aoadb.Putter, vsn int) {
+func WriteBlockChainVersion(db aoadb.Database, vsn int) {
 	enc, _ := rlp.EncodeToBytes(uint(vsn))
 	db.Put([]byte("BlockchainVersion"), enc)
 }
 
 // WriteChainConfig writes the chain config settings to the database.
-func WriteChainConfig(db aoadb.Putter, hash common.Hash, cfg *params.ChainConfig) error {
+func WriteChainConfig(db aoadb.Database, hash common.Hash, cfg *params.ChainConfig) error {
 	// short circuit and ignore if nil config. GetChainConfig
 	// will return a default.
 	if cfg == nil {
