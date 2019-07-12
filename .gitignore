@@ -29,3 +29,4 @@ profile.cov
 
 # VS Code
 .vscode
+cmd/aoa/aoa
