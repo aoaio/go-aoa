@@ -58,11 +58,7 @@ func New() *AuroraDpos {
 
 // AccumulateRewards credits the coinbase of the given block with the produce reward
 func accumulateRewards(config *params.ChainConfig, state *state.StateDB, header *types.Header) {
-	blockReward := config.FrontierBlockReward
-	if config.IsByzantium(header.Number) {
-		blockReward = config.ByzantiumBlockReward
-	}
-
+	blockReward := config.Reward
 	reward := new(big.Int).Set(blockReward)
 	state.AddBalance(header.Coinbase, reward)
 }

@@ -110,6 +110,7 @@ type Account struct {
 	VoteList    []common.Address // vote list
 	AssetList   *types.Assets    // ascending alphabet ordered Assets.
 	AssetHash   []byte
+	AssetsRoot  common.Hash
 }
 
 // newObject creates a state object.

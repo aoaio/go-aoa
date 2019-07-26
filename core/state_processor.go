@@ -118,11 +118,11 @@ func ApplyTransaction(config *params.ChainConfig, bc *BlockChain, author *common
 	// Update the state with pending changes
 	var root []byte
 	//从AresBlock块开始，不用root
-	if config.IsAres(header.Number) {
-		statedb.Finalise(true)
-	} else {
-		root = statedb.IntermediateRoot(false).Bytes()
-	}
+	//if config.IsAres(header.Number) {
+	statedb.Finalise(true)
+	//} else {
+	//	root = statedb.IntermediateRoot(false).Bytes()
+	//}
 	*usedGas += gas
 
 	// Create a new receipt for the transaction, storing the gas used by the tx.

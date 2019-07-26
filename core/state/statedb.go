@@ -583,7 +583,7 @@ func (self *StateDB) Snapshot() int {
 }
 
 // RevertToSnapshot reverts all state changes made since the given revision.
-func (self *StateDB) RevertToSnapshot(revid int, isEpiphron bool) {
+func (self *StateDB) RevertToSnapshot(revid int) {
 	// Find the snapshot in the stack of valid snapshots.
 	idx := sort.Search(len(self.validRevisions), func(i int) bool {
 		return self.validRevisions[i].id >= revid
@@ -595,13 +595,13 @@ func (self *StateDB) RevertToSnapshot(revid int, isEpiphron bool) {
 
 	// Replay the journal to undo changes.
 	for i := len(self.journal) - 1; i >= snapshot; i-- {
-		if !isEpiphron {
-			_, isAssetJournal := self.journal[i].(assetBalanceChange)
-			// Before Epiphron block, transfer asset value to a contract will always success
-			if isAssetJournal {
-				continue
-			}
-		}
+		//if !isEpiphron {
+		//	_, isAssetJournal := self.journal[i].(assetBalanceChange)
+		//	// Before Epiphron block, transfer asset value to a contract will always success
+		//	if isAssetJournal {
+		//		continue
+		//	}
+		//}
 		self.journal[i].undo(self)
 	}
 	self.journal = self.journal[:snapshot]

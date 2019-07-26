@@ -262,7 +262,7 @@ func (st *StateTransition) TransitionDb() (ret []byte, usedGas uint64, failed bo
 		snapshot := st.state.Snapshot()
 		err = st.publishAsset()
 		if err != nil {
-			st.state.RevertToSnapshot(snapshot, evm.ChainConfig().IsEpiphron(evm.BlockNumber))
+			st.state.RevertToSnapshot(snapshot)
 			log.Error("PublishAsset error", "from", st.from().Address().String(), "err", err)
 			return nil, 0, true, err
 		}

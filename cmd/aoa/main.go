@@ -58,11 +58,6 @@ var (
 		utils.DataDirFlag,
 		utils.KeyStoreDirFlag,
 		utils.NoUSBFlag,
-		//utils.DashboardEnabledFlag,
-		//utils.DashboardAddrFlag,
-		//utils.DashboardPortFlag,
-		//utils.DashboardRefreshFlag,
-		//utils.DashboardAssetsFlag,
 		utils.TxPoolNoLocalsFlag,
 		utils.TxPoolJournalFlag,
 		utils.TxPoolRejournalFlag,
@@ -129,12 +124,6 @@ var (
 	systemFlags = []cli.Flag{
 		utils.LogLevelFlag,
 	}
-
-	whisperFlags = []cli.Flag{
-		//utils.WhisperEnabledFlag,
-		//utils.WhisperMaxMessageSizeFlag,
-		//utils.WhisperMinPOWFlag,
-	}
 )
 
 func init() {
@@ -171,7 +160,6 @@ func init() {
 	app.Flags = append(app.Flags, rpcFlags...)
 	app.Flags = append(app.Flags, consoleFlags...)
 	app.Flags = append(app.Flags, debug.Flags...)
-	app.Flags = append(app.Flags, whisperFlags...)
 	app.Flags = append(app.Flags, systemFlags...)
 
 	app.Before = func(ctx *cli.Context) error {

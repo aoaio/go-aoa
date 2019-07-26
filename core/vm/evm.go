@@ -173,7 +173,6 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	registerCost := new(big.Int)
 	registerCost.SetString(params.TxGasAgentCreation, 10)
 
-
 	checkValue := value
 	if action == types.ActionSubVote {
 		checkValue = big.NewInt(1).Mul(big.NewInt(-1), value)
@@ -206,7 +205,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		err := evm.Vote(evm.StateDB, caller.Address(), value, voteList, evm.DelegateList, maxElectDelegate)
 		if err != nil {
 			log.Warn("HereVote", "err", err)
-			evm.StateDB.RevertToSnapshot(snapshot, evm.chainConfig.IsEpiphron(evm.BlockNumber))
+			evm.StateDB.RevertToSnapshot(snapshot)
 			return nil, gas, err
 		}
 	} else if action == types.ActionRegister {
@@ -238,7 +237,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	// above we revert to the snapshot and consume any gas remaining. Additionally
 	// when we're in homestead this also counts for code storage gas errors.
 	if err != nil {
-		evm.StateDB.RevertToSnapshot(snapshot, evm.chainConfig.IsEpiphron(evm.BlockNumber))
+		evm.StateDB.RevertToSnapshot(snapshot)
 		if err != errExecutionReverted {
 			contract.UseGas(contract.Gas)
 		}
@@ -279,7 +278,7 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 
 	ret, err = run(evm, contract, input)
 	if err != nil {
-		evm.StateDB.RevertToSnapshot(snapshot, evm.chainConfig.IsEpiphron(evm.BlockNumber))
+		evm.StateDB.RevertToSnapshot(snapshot)
 		if err != errExecutionReverted {
 			contract.UseGas(contract.Gas)
 		}
@@ -312,7 +311,7 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 
 	ret, err = run(evm, contract, input)
 	if err != nil {
-		evm.StateDB.RevertToSnapshot(snapshot, evm.chainConfig.IsEpiphron(evm.BlockNumber))
+		evm.StateDB.RevertToSnapshot(snapshot)
 		if err != errExecutionReverted {
 			contract.UseGas(contract.Gas)
 		}
@@ -355,7 +354,7 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 	// when we're in Homestead this also counts for code storage gas errors.
 	ret, err = run(evm, contract, input)
 	if err != nil {
-		evm.StateDB.RevertToSnapshot(snapshot, evm.chainConfig.IsEpiphron(evm.BlockNumber))
+		evm.StateDB.RevertToSnapshot(snapshot)
 		if err != errExecutionReverted {
 			contract.UseGas(contract.Gas)
 		}
@@ -429,7 +428,7 @@ func (evm *EVM) Create(caller ContractRef, code []byte, gas uint64, asset *commo
 	// above we revert to the snapshot and consume any gas remaining. Additionally
 	// when we're in homestead this also counts for code storage gas errors.
 	if maxCodeSizeExceeded || (err != nil && (err != ErrCodeStoreOutOfGas)) {
-		evm.StateDB.RevertToSnapshot(snapshot, evm.chainConfig.IsEpiphron(evm.BlockNumber))
+		evm.StateDB.RevertToSnapshot(snapshot)
 		if err != errExecutionReverted {
 			contract.UseGas(contract.Gas)
 		}

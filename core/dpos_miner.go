@@ -191,7 +191,7 @@ func (d *DposMiner) signBlock(block *types.Block, coinbase common.Address) error
 	account := accounts.Account{Address: coinbase}
 	wallet, err := d.aoa.AccountManager().Find(account)
 	if err != nil {
-		log.Error("Failed to find coinbase wallet, coinbaseAddress=%s, err=%s",coinbase.Hex(), err)
+		log.Error("Failed to find coinbase wallet, coinbaseAddress=%s, err=%s", coinbase.Hex(), err)
 		return errors.New("sign error")
 	}
 	// b := sha3.Sum256(block.Hash().Bytes())
@@ -417,7 +417,7 @@ func (env *worker) commitTransaction(tx *types.Transaction, bc *BlockChain, coin
 	//now := time.Now()
 	receipt, gasUsed, err := ApplyTransaction(env.config, bc, &coinbase, gp, env.state, env.header, tx, &env.header.GasUsed, vm.Config{}, env.delegatedb, env.header.Time.Uint64(), false)
 	if err != nil {
-		env.state.RevertToSnapshot(snap, env.config.IsEpiphron(env.header.Number))
+		env.state.RevertToSnapshot(snap)
 		env.delegatedb.RevertToSnapshot(delegateSnap)
 		return err, gasUsed, nil
 	}

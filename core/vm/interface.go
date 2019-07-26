@@ -77,7 +77,7 @@ type StateDB interface {
 	Empty(common.Address) bool
 
 	//bool arg means IsEpiphron, Before Epiphron block, transfer asset value to a contract will always success
-	RevertToSnapshot(int, bool)
+	RevertToSnapshot(int)
 	Snapshot() int
 
 	AddLog(*types.Log)

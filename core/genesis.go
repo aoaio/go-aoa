@@ -44,23 +44,27 @@ import (
 
 var errGenesisNoConfig = errors.New("genesis has no chain configuration")
 
-const genesisExtra = "AOA genesis"
+const (
+	genesisExtra = "AOA genesis"
+	NameSpace    = "AuroraChain"
+	Symbol       = "AOA"
+)
 
 // Genesis specifies the header fields, state of a genesis block. It also defines hard
 // fork switch-over blocks through the chain configuration.
 type Genesis struct {
-	Config    *params.ChainConfig `json:"config"`
-	Timestamp uint64              `json:"timestamp"`
-	ExtraData []byte              `json:"extraData"`
-	GasLimit  uint64              `json:"gasLimit"   gencodec:"required"`
-	Coinbase  common.Address      `json:"coinbase"`
-	Alloc     GenesisAlloc        `json:"alloc"      gencodec:"required"`
-	Agents    GenesisAgents       `json:"agents"     gencodec:"required"`
-	// These fields are used for consensus tests. Please don't use them
-	// in actual genesis blocks.
-	Number     uint64      `json:"number"`
-	GasUsed    uint64      `json:"gasUsed"`
-	ParentHash common.Hash `json:"parentHash"`
+	Config     *params.ChainConfig `json:"config"`
+	NameSpace  string              `json:"NameSpace"`
+	Symbol     string              `json:"Symbol"`
+	Timestamp  uint64              `json:"timestamp"`
+	ExtraData  []byte              `json:"extraData"`
+	GasLimit   uint64              `json:"gasLimit"   gencodec:"required"`
+	Coinbase   common.Address      `json:"coinbase"`
+	Alloc      GenesisAlloc        `json:"alloc"      gencodec:"required"`
+	Agents     GenesisAgents       `json:"agents"     gencodec:"required"`
+	Number     uint64              `json:"number"`
+	GasUsed    uint64              `json:"gasUsed"`
+	ParentHash common.Hash         `json:"parentHash"`
 }
 
 // GenesisAlloc specifies the initial state that is part of the genesis block.
@@ -192,7 +196,7 @@ func SetupGenesisBlock(db aoadb.Database, genesis *Genesis) (*params.ChainConfig
 	// Special case: don't change the existing config of a non-mainnet chain if no new
 	// config is supplied. These chains would get AllProtocolChanges (and a compat error)
 	// if we just continued here.
-	if genesis == nil && stored != params.MainnetGenesisHash {
+	if genesis == nil && stored != params.MainNetGenesisHash {
 		return storedcfg, stored, genesis, nil
 	}
 	// Check config compatibility and write the config. Compatibility errors
@@ -201,10 +205,6 @@ func SetupGenesisBlock(db aoadb.Database, genesis *Genesis) (*params.ChainConfig
 	if height == missingNumber {
 		return newcfg, stored, genesis, fmt.Errorf("missing block number for head header hash")
 	}
-	compatErr := storedcfg.CheckCompatible(newcfg, height)
-	if compatErr != nil && height != 0 && compatErr.RewindTo != 0 {
-		return newcfg, stored, genesis, compatErr
-	}
 	return newcfg, stored, genesis, WriteChainConfig(db, stored, newcfg)
 }
 
@@ -212,10 +212,10 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 	switch {
 	case g != nil:
 		return g.Config
-	case ghash == params.MainnetGenesisHash:
-		return params.MainnetChainConfig
-	case ghash == params.TestnetGenesisHash:
-		return params.TestnetChainConfig
+	case ghash == params.MainNetGenesisHash:
+		return params.MainNetChainConfig
+	case ghash == params.TestNetGenesisHash:
+		return params.TestNetChainConfig
 	default:
 		return params.AllAuroraProtocolChanges
 	}
@@ -334,8 +334,10 @@ func DefaultGenesisBlock() *Genesis {
 	encodeBytes := hexutil.Encode([]byte(genesisExtra))
 	agentName := hexutil.MustDecode(encodeBytes)
 	return &Genesis{
-		Config:    params.MainnetChainConfig,
+		Config:    params.MainNetChainConfig,
 		ExtraData: agentName,
+		NameSpace: NameSpace,
+		Symbol:    Symbol,
 		GasLimit:  params.GenesisGasLimit,
 		Alloc:     decodePrealloc(mainnetAllocData),
 		Agents:    decodeGenesisAgents(mainnetAgentData),
@@ -348,7 +350,9 @@ func DefaultTestnetGenesisBlock() *Genesis {
 	encodeBytes := hexutil.Encode([]byte(genesisExtra))
 	agentName := hexutil.MustDecode(encodeBytes)
 	return &Genesis{
-		Config:    params.TestnetChainConfig,
+		Config:    params.TestNetChainConfig,
+		NameSpace: NameSpace,
+		Symbol:    Symbol,
 		ExtraData: agentName,
 		GasLimit:  250000000,
 		Alloc:     decodePrealloc(testnetAllocData),
@@ -382,6 +386,8 @@ func DeveloperGenesisBlock(developers []common.Address) *Genesis {
 		},
 		Agents:    geneAgents,
 		Timestamp: 1492009146,
+		NameSpace: NameSpace,
+		Symbol:    Symbol,
 	}
 }
 

@@ -44,6 +44,7 @@ type Candidate struct {
 	Address      string `json:"address"`
 	Vote         uint64 `json:"vote"`         // 投票数
 	Nickname     string `json:"nickname"`     // delegate name
+	Rank         uint64 `json:"rank"`         // 当前排名
 	RegisterTime uint64 `json:"registerTime"` // 注册时间
 }
 

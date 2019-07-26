@@ -23,15 +23,15 @@ import (
 
 	"encoding/json"
 	"fmt"
-	"github.com/Aurorachain/go-aoa/common"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/Aurorachain/go-aoa/aoadb"
+	"github.com/Aurorachain/go-aoa/common"
 	"github.com/Aurorachain/go-aoa/common/hexutil"
 	"github.com/Aurorachain/go-aoa/core/types"
 	"github.com/Aurorachain/go-aoa/params"
+	"github.com/Aurorachain/go-aoa/rlp"
+	"github.com/davecgh/go-spew/spew"
 	"io/ioutil"
 	"os"
-	"github.com/Aurorachain/go-aoa/rlp"
 	"strconv"
 )
 
@@ -51,12 +51,12 @@ func TestDefaultGenesisBlock(t *testing.T) {
 	json := string(bytes)
 	fmt.Println(json)
 	block, _, _ := genesis.ToBlock()
-	if block.Hash() != params.MainnetGenesisHash {
-		t.Errorf("wrong mainnet genesis hash, got %v, want %v", block.Hash(), params.MainnetGenesisHash)
+	if block.Hash() != params.MainNetGenesisHash {
+		t.Errorf("wrong mainnet genesis hash, got %v, want %v", block.Hash(), params.MainNetGenesisHash)
 	}
 	block, _, _ = DefaultTestnetGenesisBlock().ToBlock()
-	if block.Hash() != params.TestnetGenesisHash {
-		t.Errorf("wrong testnet genesis hash, got %v, want %v", block.Hash(), params.TestnetGenesisHash)
+	if block.Hash() != params.TestNetGenesisHash {
+		t.Errorf("wrong testnet genesis hash, got %v, want %v", block.Hash(), params.TestNetGenesisHash)
 	}
 
 	// ExtraData hex to string
@@ -70,13 +70,11 @@ func TestDefaultGenesisBlock(t *testing.T) {
 func TestDefaultGenesisBlock2(t *testing.T) {
 	genesis := DefaultGenesisBlock()
 	block, _, _ := genesis.ToBlock()
-	fmt.Println("main genesisBlockHash = ",block.Hash().Hex())
-
-
+	fmt.Println("main genesisBlockHash = ", block.Hash().Hex())
 
 	genesis2 := DefaultTestnetGenesisBlock()
 	block2, _, _ := genesis2.ToBlock()
-	fmt.Println("test genesisBlockHash = ",block2.Hash().Hex())
+	fmt.Println("test genesisBlockHash = ", block2.Hash().Hex())
 }
 
 type testGenesis struct {
@@ -132,7 +130,7 @@ func TestSetupGenesis(t *testing.T) {
 			fn: func(db aoadb.Database) (*params.ChainConfig, common.Hash, *Genesis, error) {
 				return SetupGenesisBlock(db, new(Genesis))
 			},
-			wantErr:    errGenesisNoConfig,
+			wantErr: errGenesisNoConfig,
 			//wantConfig: params.AllEthashProtocolChanges,
 		},
 		{
@@ -140,8 +138,8 @@ func TestSetupGenesis(t *testing.T) {
 			fn: func(db aoadb.Database) (*params.ChainConfig, common.Hash, *Genesis, error) {
 				return SetupGenesisBlock(db, nil)
 			},
-			wantHash:   params.MainnetGenesisHash,
-			wantConfig: params.MainnetChainConfig,
+			wantHash:   params.MainNetGenesisHash,
+			wantConfig: params.MainNetChainConfig,
 		},
 		{
 			name: "mainnet block in DB, genesis == nil",
@@ -149,8 +147,8 @@ func TestSetupGenesis(t *testing.T) {
 				DefaultGenesisBlock().MustCommit(db)
 				return SetupGenesisBlock(db, nil)
 			},
-			wantHash:   params.MainnetGenesisHash,
-			wantConfig: params.MainnetChainConfig,
+			wantHash:   params.MainNetGenesisHash,
+			wantConfig: params.MainNetChainConfig,
 		},
 		{
 			name: "custom block in DB, genesis == nil",
@@ -167,9 +165,9 @@ func TestSetupGenesis(t *testing.T) {
 				customg.MustCommit(db)
 				return SetupGenesisBlock(db, DefaultTestnetGenesisBlock())
 			},
-			wantErr:    &GenesisMismatchError{Stored: customghash, New: params.TestnetGenesisHash},
-			wantHash:   params.TestnetGenesisHash,
-			wantConfig: params.TestnetChainConfig,
+			wantErr:    &GenesisMismatchError{Stored: customghash, New: params.TestNetGenesisHash},
+			wantHash:   params.TestNetGenesisHash,
+			wantConfig: params.TestNetChainConfig,
 		},
 		{
 			name: "compatible config in DB",
@@ -231,21 +229,20 @@ func TestDefaultRinkebyGenesisBlock(t *testing.T) {
 func TestGenesisAgents(t *testing.T) {
 	var list GenesisAgents
 	candidateList := []types.Candidate{
-		{"0x71af77518da8ee1e152068ea4727d1041d71b813", uint64(1), "node1-1", 1492009146}, // 172.16.134.100
-		{"0xa51bac4fe71640157f29317c2fe233c26b71c6c8", uint64(1), "node1-2", 1492009146}, // 172.16.134.100
-		{"0xb0b81949b3b6d6ff926336d6227cec04ceca88b2", uint64(1), "node1-3", 1492009146}, // 172.16.134.100
-		{"0x4d8bfcdbc0192e3a2e189ed133ee4e98e4e381f8", uint64(1), "node2-1", 1492009146}, // 172.16.134.101
-		{"0xe92c157278abafa68e3547d4d5bd3ed4a5afccb3", uint64(1), "node2-2", 1492009146}, // 172.16.134.101
-		{"0x5ac2ff101f11ae3c2b7093e25f5300018252c2a3", uint64(1), "node2-3", 1492009146}, // 172.16.134.101
+		{"0x71af77518da8ee1e152068ea4727d1041d71b813", uint64(1), "node1-1", 1, 1492009146}, // 172.16.134.100
+		{"0xa51bac4fe71640157f29317c2fe233c26b71c6c8", uint64(1), "node1-2", 1, 1492009146}, // 172.16.134.100
+		{"0xb0b81949b3b6d6ff926336d6227cec04ceca88b2", uint64(1), "node1-3", 1, 1492009146}, // 172.16.134.100
+		{"0x4d8bfcdbc0192e3a2e189ed133ee4e98e4e381f8", uint64(1), "node2-1", 1, 1492009146}, // 172.16.134.101
+		{"0xe92c157278abafa68e3547d4d5bd3ed4a5afccb3", uint64(1), "node2-2", 1, 1492009146}, // 172.16.134.101
+		{"0x5ac2ff101f11ae3c2b7093e25f5300018252c2a3", uint64(1), "node2-3", 1, 1492009146}, // 172.16.134.101
 	}
-	list = append(list,candidateList...)
+	list = append(list, candidateList...)
 
 	data, err := rlp.EncodeToBytes(list)
 	if err != nil {
 		t.Fatal(err)
 	}
 	result := strconv.QuoteToASCII(string(data))
-
 
 	list2 := decodeGenesisAgents(result)
 	fmt.Println("result = ", result)
