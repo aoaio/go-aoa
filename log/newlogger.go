@@ -13,6 +13,9 @@ type Field = zapcore.Field
 var errorLogger *zap.SugaredLogger
 var logger *zap.Logger
 
+var LogLevel = zap.InfoLevel
+var atom = zap.NewAtomicLevel()
+
 var levelMap = map[string]zapcore.Level{
 	"debug":  zapcore.DebugLevel,
 	"info":   zapcore.InfoLevel,
@@ -32,7 +35,6 @@ func getLoggerLevel(lvl string) zapcore.Level {
 
 func init() {
 	//fileName := "zap.log"
-	level := getLoggerLevel(zapcore.InfoLevel.String())
 	//syncWriter := zapcore.AddSync(&lumberjack.Logger{
 	//	Filename:  fileName,
 	//	MaxSize:   1 << 30, //1G
@@ -48,9 +50,19 @@ func init() {
 	config.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	config.EncodeCaller = zapcore.ShortCallerEncoder
 
-	core := zapcore.NewCore(zapcore.NewConsoleEncoder(config), os.Stdout, zap.NewAtomicLevelAt(level))
+	core := zapcore.NewCore(zapcore.NewConsoleEncoder(config),
+		os.Stdout,
+		atom,
+		//zap.NewAtomicLevelAt(level)
+	)
+	atom.SetLevel(LogLevel)
 	logger = zap.New(core, zap.Development(), zap.AddCallerSkip(1))
 	errorLogger = logger.Sugar()
+}
+
+func SetLevel(level string) {
+	LogLevel = getLoggerLevel(level)
+	atom.SetLevel(LogLevel)
 }
 
 func Debug(args ...interface{}) {

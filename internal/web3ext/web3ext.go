@@ -122,6 +122,11 @@ web3._extend({
 			call: 'admin_openTopNet',
 		}),
 		new web3._extend.Method({
+			name: 'setLogLevel',
+			call: 'admin_setLogLevel',
+			params: 1
+		}),
+		new web3._extend.Method({
 			name: 'removePeer',
 			call: 'admin_removePeer',
 			params: 1

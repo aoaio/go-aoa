@@ -52,6 +52,11 @@ func (api *PrivateAdminAPI) OpenTopNet() (bool, error) {
 	return res, nil
 }
 
+func (api *PrivateAdminAPI) SetLogLevel(level string) string {
+	log.SetLevel(level)
+	return log.LogLevel.String()
+}
+
 // AddPeer requests connecting to a remote node, and also maintaining the new
 // connection at all times, even reconnecting if it is lost.
 func (api *PrivateAdminAPI) AddPeer(url string) (bool, error) {

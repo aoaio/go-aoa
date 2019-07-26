@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"github.com/Aurorachain/go-aoa/common"
 	"github.com/Aurorachain/go-aoa/crypto/secp256k1"
-	"github.com/Aurorachain/go-aoa/crypto/sha3"
+	"golang.org/x/crypto/sha3"
 	"io/ioutil"
 	"math/big"
 	"os"
