@@ -1,0 +1,7 @@
+syntax = "proto3";
+import "utils/common.proto";
+package account;
+service Account {
+    rpc accounts (utils.AccountsRequest) returns (utils.AccountsReply) {
+    }
+}
