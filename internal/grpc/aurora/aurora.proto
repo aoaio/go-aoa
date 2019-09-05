@@ -1,0 +1,35 @@
+syntax = "proto3";
+package aurora;
+service Aurora {
+    rpc gasPrice (GasPriceRequest) returns (GasPriceReply) {
+    }
+    rpc protocolVersion (ProtocolVersionRequest) returns (ProtocolVersionReply) {
+    }
+    rpc syncing (SyncingRequest) returns (SyncingReply) {
+    }
+}
+message GasPriceRequest {
+}
+message GasPriceReply {
+    bytes price = 1;
+}
+message ProtocolVersionRequest {
+}
+message ProtocolVersionReply {
+    int32 version = 1;
+}
+message SyncingRequest {
+}
+message SyncingReply {
+    bool syncing = 1;
+    fixed64 startingBlock = 2;
+    fixed64 currentBlock = 3;
+    fixed64 highestBlock = 4;
+    fixed64 pulledStates = 5;
+    fixed64 knownStates = 6;
+    //    "startingBlock": hexutil.Uint64(progress.StartingBlock),
+    //	"currentBlock":  hexutil.Uint64(progress.CurrentBlock),
+    //	"highestBlock":  hexutil.Uint64(progress.HighestBlock),
+    //	"pulledStates":  hexutil.Uint64(progress.PulledStates),
+    //	"knownStates":   hexutil.Uint64(progress.KnownStates),
+}
