@@ -1,0 +1,189 @@
+syntax = "proto3";
+option go_package = "github.com/Aurorachain/go-aoa/internal/grpc/utils";
+package utils;
+message AccountsRequest {
+}
+message AccountsReply {
+    repeated bytes accounts = 1;
+}
+message TransactionRequest {
+    int64 blockNumber = 1;
+    bytes hash = 2;
+    fixed64 index = 3;
+}
+message RpcTransaction {
+    //    BlockHash        common.Hash      `json:"blockHash"`
+    //    BlockNumber      *hexutil.Big     `json:"blockNumber"`
+    //    From             common.Address   `json:"from"`
+    //    Gas              hexutil.Uint64   `json:"gas"`
+    //    GasPrice         *hexutil.Big     `json:"gasPrice"`
+    //    Hash             common.Hash      `json:"hash"`
+    //    Input            hexutil.Bytes    `json:"input"`
+    //    Nonce            hexutil.Uint64   `json:"nonce"`
+    //    To               *common.Address  `json:"to"`
+    //    TransactionIndex hexutil.Uint     `json:"transactionIndex"`
+    //    Value            *hexutil.Big     `json:"value"`
+    //    V                *hexutil.Big     `json:"v"`
+    //    R                *hexutil.Big     `json:"r"`
+    //    S                *hexutil.Big     `json:"s"`
+    //    Action           uint64           `json:"action"`
+    //    Votes            []types.Vote     `json:"votes,omitempty"`
+    //    Nickname         string           `json:"nickname,omitempty"`
+    //    Asset            *common.Address  `json:"asset,omitempty"`
+    //    AssetInfo        *SendTxAssetInfo `json:"assetInfo,omitempty"`
+    //    SubAddress       string           `json:"subAddress,omitempty"`
+    //    Abi              string           `json:"abi,omitempty"`
+    bytes blockHash = 1;
+    bytes blockNumber = 2;
+    bytes from = 3;
+    fixed64 Gas = 4;
+    bytes gasPrice = 5;
+    bytes hash = 6;
+    bytes input = 7;
+    fixed64 nonce = 8;
+    bytes to = 9;
+    fixed64 TransactionIndex = 10;
+    bytes value = 11;
+    bytes v = 12;
+    bytes r = 13;
+    bytes s = 14;
+    fixed64 action = 15;
+    repeated Vote votes = 16;
+    string nickname = 17;
+    bytes asset = 18;
+    SendTxAssetInfo assetInfo = 19;
+    string subAddress = 20;
+    string abi = 21;
+}
+message Transaction {
+    //data txdata
+    //// caches
+    //hash       atomic.Value
+    //size       atomic.Value
+    //from       atomic.Value
+    //isContract atomic.Value
+    //    TxData txData = 1;
+    bytes txData = 1;
+    //caches
+    bytes hash = 2;
+    int64 size = 3;
+    bytes from = 4;
+    bool isContract = 5;
+}
+message TxData {
+    //AccountNonce uint64          `json:"nonce"    gencodec:"required"`
+    //Price        *big.Int        `json:"gasPrice" gencodec:"required"`
+    //GasLimit     uint64          `json:"gas"      gencodec:"required"`
+    //Recipient    *common.Address `json:"to"       rlp:"nil"` // nil means contract creation
+    //Amount       *big.Int        `json:"value"    gencodec:"required"`
+    //Payload      []byte          `json:"input"    gencodec:"required"`
+    //
+    //Action   uint64 `json:"action"  gencodec:"required"` // 参见当前包（当前文件）ActionXXX 常量定义
+    //Vote     []byte `json:"vote" rlp:"nil"`
+    //Nickname []byte `json:"nickname" rlp:"nil"`
+    //
+    ////资产符号，作为资产的唯一标识。当Action 为ActionTrans时有意义。
+    //Asset *common.Address `json:"asset,omitempty" rlp:"nil"`
+    ////资产信息，当Action 为 ActionPublishAsset 时有意义
+    //AssetInfo []byte `json:"assetInfo,omitempty" rlp:"nil"`
+    ////子地址，做归集资金使用
+    //SubAddress string `json:"subAddress,omitempty" rlp:"nil"`
+    //// When create a contract, user can offer the ABI so that it can store on the block
+    //Abi string `json:"abi,omitempty" rlp:"nil"`
+    //
+    //// Signature values
+    //V *big.Int `json:"v" gencodec:"required"` // chainId
+    //R *big.Int `json:"r" gencodec:"required"`
+    //S *big.Int `json:"s" gencodec:"required"`
+    //
+    //// This is only used when marshaling to JSON.
+    //Hash *common.Hash `json:"hash" rlp:"-"`
+    fixed64 accountNonce = 1;
+    bytes price = 2;
+    fixed64 gasLimit = 3;
+    bytes recipient = 4;
+    bytes amount = 5;
+    bytes payload = 6;
+    fixed64 action = 7;
+    bytes vote = 8;
+    bytes nickname = 9;
+    bytes asset = 10;
+    bytes assetInfo = 11;
+    string subAddress = 12;
+    string abi = 13;
+    bytes v = 14;
+    bytes r = 15;
+    bytes s = 16;
+    bytes hash = 17;
+}
+message Vote {
+    //    Candidate *common.Address `json:"candidate"`
+    //    Operation uint            `json:"operation"` //0,投票;1,取消投票
+    bytes candidate = 1;
+    fixed32 operation = 2;
+}
+message SendTxAssetInfo {
+    //Name      string       `json:"name"`
+    //Symbol    string       `json:"symbol"`
+    //Supply    *hexutil.Big `json:"supply"`
+    //Desc      string       `json:"desc"`
+    //assetinfo *types.AssetInfo
+    string name = 1;
+    string symbol = 2;
+    bytes supply = 3;
+    string desc = 4;
+    AssetInfo assetInfo = 5;
+}
+message AssetInfo {
+    //    Issuer *common.Address `json:"issuer,omitempty" rlp:"nil"`
+    //    Name   string          `json:"name"`
+    //    Symbol string          `json:"symbol"`
+    //    Supply *big.Int        `json:"supply"`
+    //    Desc   string          `json:"desc"`
+    bytes issuer = 1;
+    string name = 2;
+    string symbol = 3;
+    bytes supply = 4;
+    string desc = 5;
+}
+message SendTx {
+    //From     common.Address  `json:"from"`
+    //To       string          `json:"to"`
+    //Gas      *hexutil.Uint64 `json:"gas"`
+    //GasPrice *hexutil.Big    `json:"gasPrice"`
+    //Value    *hexutil.Big    `json:"value"`
+    //Nonce    *hexutil.Uint64 `json:"nonce"`
+    //// We accept "data" and "input" for backwards-compatibility reasons. "input" is the
+    //// newer name and should be preferred by clients.
+    //Data       *hexutil.Bytes   `json:"data"`
+    //Input      *hexutil.Bytes   `json:"input"`
+    //Action     uint64           `json:"action"`
+    //Vote       []types.Vote     `json:"vote"`
+    //Nickname   string           `json:"nickname"`
+    //Asset      *common.Address  `json:"asset"`
+    //AssetInfo  *SendTxAssetInfo `json:"assetInfo,omitempty"`
+    //SubAddress string           `json:"subAddress,omitempty"`
+    //Abi        string           `json:"abi,omitempty"`
+    bytes from = 1;
+    string to = 2;
+    fixed64 gas = 3;
+    bytes gasPrice = 4;
+    bytes value = 5;
+    //    fixed64 nonce = 6;
+    Nonce nonce = 6;
+    bytes data = 7;
+    bytes input = 8;
+    fixed64 action = 9;
+    repeated Vote vote = 10;
+    string nickname = 11;
+    bytes asset = 12;
+    SendTxAssetInfo assetInfo = 13;
+    string subAddress = 14;
+    string abi = 15;
+}
+message TxReply {
+    bytes hash = 1;
+}
+message Nonce {
+    fixed64 nonce = 1;
+}
