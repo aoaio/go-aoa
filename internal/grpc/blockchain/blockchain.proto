@@ -1,0 +1,249 @@
+syntax = "proto3";
+
+import "utils/common.proto";
+
+package blockchain;
+
+service BlockChain {
+    rpc blockNumber (BlockNumberRequest) returns (BlockNumberReply) {
+    }
+    rpc getBalance (BalanceRequest) returns (BalanceReply) {
+    }
+    rpc getAssetBalance (AssetBalanceRequest) returns (AssetBalanceReply) {
+    }
+    rpc getDetailBalance (DetailBalanceRequest) returns (DetailBalanceReply) {
+    }
+    rpc getDelegateList (DelegateListRequest) returns (DelegateListReply) {
+    }
+    rpc getTopDelegateList (DelegateListRequest) returns (DelegateListReply) {
+    }
+    rpc getDelegate (DelegateRequest) returns (DelegateReply) {
+    }
+    rpc getVotesNumber (VotesNumberRequest) returns (VotesNumberReply) {
+    }
+    rpc getVotesList (VotesListRequest) returns (VotesListReply) {
+    }
+    rpc getBlockByNumber (BlockRequest) returns (BlockReply) {
+    }
+    rpc getBlockByHash (BlockRequest) returns (BlockReply) {
+    }
+    rpc getCode (CodeRequest) returns (CodeReply) {
+    }
+    rpc getAbi (AbiRequest) returns (AbiReply) {
+    }
+    rpc getStorageAt (StorageRequest) returns (StorageReply) {
+    }
+    rpc call (CallRequest) returns (CallReply) {
+    }
+    rpc estimateGas (EstimateGasRequest) returns (EstimateGasReply) {
+    }
+    rpc getAssetInfo (AssetInfoRequest) returns (AssetInfoReply) {
+    }
+}
+message BlockNumberRequest {
+}
+message BlockNumberReply {
+    bytes blockNumber = 1;
+}
+message BalanceRequest {
+    bytes address = 1;
+    int64 blockNumber = 2;
+}
+message BalanceReply {
+    bytes balance = 1;
+}
+message AssetBalanceRequest {
+    bytes address = 1;
+    bytes asset = 2;
+    int64 blockNumber = 3;
+}
+message AssetBalanceReply {
+    bytes balance = 1;
+}
+message DetailBalanceRequest {
+    bytes address = 1;
+    int64 blockNumber = 2;
+}
+message DetailBalanceReply {
+    bytes balance = 1;
+    bytes lockBalance = 2;
+    bytes totalBalance = 3;
+    map<string, bytes> assetBalance = 4;
+}
+message DelegateListRequest {
+    int64 blockNumber = 1;
+}
+message DelegateListReply {
+    repeated Candidate candidate = 1;
+}
+message DelegateRequest {
+    bytes address = 1;
+}
+message DelegateReply {
+    Candidate candidate = 1;
+}
+message VotesNumberRequest {
+    bytes address = 1;
+    int64 blockNumber = 2;
+}
+message VotesNumberReply {
+    bytes number = 1;
+}
+message VotesListRequest {
+    bytes address = 1;
+    int64 blockNumber = 2;
+}
+message VotesListReply {
+    repeated bytes address = 1;
+}
+message BlockRequest {
+    int64 blockNumber = 1;
+    bool fullTx = 2;
+    bytes hash = 3;
+}
+message BlockReply {
+    //    Block block = 1;
+    //    "number":     (*hexutil.Big)(head.Number),
+    //	"hash":       b.Hash(),
+    //	"parentHash": head.ParentHash,
+    //		// "logsBloom": head.Bloom,
+    //		"stateRoot":               head.Root,
+    //		"delegateRoot":            head.DelegateRoot,
+    //		"validatorAddress":        head.Coinbase,
+    //		"extraData":               hexutil.Bytes(head.Extra),
+    //		"size":                    hexutil.Uint64(uint64(b.Size().Int64())),
+    //		"gasLimit":                hexutil.Uint64(head.GasLimit),
+    //		"gasUsed":                 hexutil.Uint64(head.GasUsed),
+    //		"timestamp":               (*hexutil.Big)(head.Time),
+    //		"transactionsRoot":        head.TxHash,
+    //		"receiptsRoot":            head.ReceiptHash,
+    //		"validator":               hexutil.Bytes(head.AgentName),
+    //		"shuffleDelegateListHash": head.ShuffleHash,
+    //		"shuffleBlockNumber":      (*hexutil.Big)(head.ShuffleBlockNumber),
+    bytes number = 1;
+    bytes hash = 2;
+    bytes parentHash = 3;
+    bytes stateRoot = 4;
+    bytes delegateRoot = 5;
+    bytes validatorAddress = 6;
+    bytes extraData = 7;
+    fixed64 size = 8;
+    fixed64 gasLimit = 9;
+    fixed64 gasUsed = 10;
+    bytes timestamp = 11;
+    bytes transactionsRoot = 12;
+    bytes receiptsRoot = 13;
+    bytes validator = 14;
+    bytes shuffleDelegateListHash = 15;
+    bytes shuffleBlockNumber = 16;
+    utils.RpcTransaction rpcTransaction = 17;
+    repeated bytes transactions = 18;
+}
+message Block {
+    //    "number":     (*hexutil.Big)(head.Number),
+    //	"hash":       b.Hash(),
+    //	"parentHash": head.ParentHash,
+    //		// "logsBloom": head.Bloom,
+    //		"stateRoot":               head.Root,
+    //		"delegateRoot":            head.DelegateRoot,
+    //		"validatorAddress":        head.Coinbase,
+    //		"extraData":               hexutil.Bytes(head.Extra),
+    //		"size":                    hexutil.Uint64(uint64(b.Size().Int64())),
+    //		"gasLimit":                hexutil.Uint64(head.GasLimit),
+    //		"gasUsed":                 hexutil.Uint64(head.GasUsed),
+    //		"timestamp":               (*hexutil.Big)(head.Time),
+    //		"transactionsRoot":        head.TxHash,
+    //		"receiptsRoot":            head.ReceiptHash,
+    //		"validator":               hexutil.Bytes(head.AgentName),
+    //		"shuffleDelegateListHash": head.ShuffleHash,
+    //		"shuffleBlockNumber":      (*hexutil.Big)(head.ShuffleBlockNumber),
+}
+message CodeRequest {
+    bytes address = 1;
+    int64 blockNumber = 2;
+}
+message CodeReply {
+    bytes code = 1;
+}
+message AbiRequest {
+    bytes address = 1;
+    int64 blockNumber = 2;
+}
+message AbiReply {
+    string abi = 1;
+}
+message StorageRequest {
+    bytes address = 1;
+    string key = 2;
+    int64 blockNumber = 3;
+}
+message StorageReply {
+    bytes storage = 1;
+}
+message CallRequest {
+    Call call = 1;
+    int64 blockNumber = 2;
+}
+message CallReply {
+    bytes result = 1;
+}
+message EstimateGasRequest {
+    Call call = 1;
+}
+message EstimateGasReply {
+    fixed64 result = 1;
+}
+message AssetInfoRequest {
+    bytes asset = 1;
+}
+message AssetInfoReply {
+    utils.AssetInfo assetInfo = 1;
+}
+//message AssetInfo {
+//    //    Issuer *common.Address `json:"issuer,omitempty" rlp:"nil"`
+//    //    Name   string          `json:"name"`
+//    //    Symbol string          `json:"symbol"`
+//    //    Supply *big.Int        `json:"supply"`
+//    //    Desc   string          `json:"desc"`
+//    string issuer = 1;
+//    string name = 2;
+//    string symbol = 3;
+//    bytes supply = 4;
+//    string desc = 5;
+//}
+message Call {
+    //    From       common.Address   `json:"from"`
+    //    To         *common.Address  `json:"to"`
+    //    Gas        hexutil.Uint64   `json:"gas"`
+    //    GasPrice   hexutil.Big      `json:"gasPrice"`
+    //    Value      hexutil.Big      `json:"value"`
+    //    Data       hexutil.Bytes    `json:"data"`
+    //    Action     uint64           `json:"action"`
+    //    Vote       []types.Vote     `json:"vote"`
+    //    Asset      *common.Address  `json:"asset"`
+    //    AssetInfo  *SendTxAssetInfo `json:"assetInfo,omitempty"`
+    //    SubAddress string           `json:"subAddress"`
+    //    Abi        string           `json:"abi"`
+    bytes from = 1;
+    bytes to = 2;
+    fixed64 gas = 3;
+    bytes gasPrice = 4;
+    bytes value = 5;
+    bytes data = 6;
+    fixed64 action = 7;
+    repeated utils.Vote vote = 8;
+    bytes asset = 9;
+    utils.SendTxAssetInfo assetInfo = 10;
+    string subAddress = 11;
+    string abi = 12;
+}
+message Candidate {
+    //    Address      string `json:"address"`
+    //    Vote         uint64 `json:"vote"`         // 投票数
+    //    Nickname     string `json:"nickname"`     // delegate name
+    //    RegisterTime uint64 `json:"registerTime"` // 注册时间
+    string address = 1;
+    fixed64 vote = 2;
+    string nickname = 3;
+    fixed64 registerTime = 4;
+}
