@@ -1,0 +1,141 @@
+syntax = "proto3";
+import "utils/common.proto";
+package personal;
+service Personal {
+    rpc listAccounts (utils.AccountsRequest) returns (utils.AccountsReply) {
+    }
+    rpc listWallets (RawWalletRequest) returns (RawWalletReply) {
+    }
+    rpc openWallet (OpenWalletRequest) returns (OpenWalletReply) {
+    }
+    rpc deriveAccount (DeriveAccountRequest) returns (Account) {
+    }
+    rpc newAccount (NewAccountRequest) returns (NewAccountReply) {
+    }
+    rpc importRawKey (ImportRawKeyRequest) returns (ImportRawKeyReply) {
+    }
+    rpc unlockAccount (LockAccountRequest) returns (LockAccountReply) {
+    }
+    rpc lockAccount (LockAccountRequest) returns (LockAccountReply) {
+    }
+    rpc activateDelegate (ActivateDelegateRequest) returns (ActivateDelegateReply) {
+    }
+    rpc sendTransaction (SendTxRequest) returns (SendTxReply) {
+    }
+    rpc signTransaction (SignTransactionRequest) returns (SignTransactionReply) {
+    }
+    rpc sign (SignRequest) returns (SignReply) {
+    }
+    rpc ecRecover (EcRecoverRequest) returns (EcRecoverReply) {
+    }
+    rpc signAndSendTransaction (SendTxRequest) returns (SendTxReply) {
+    }
+    rpc getPoolNonce (NonceRequest) returns (NonceReply) {
+    }
+}
+message RawWalletRequest {
+}
+message RawWalletReply {
+    repeated RawWallet rawWallets = 1;
+}
+message RawWallet {
+    //    URL      string             `json:"url"`
+    //    Status   string             `json:"status"`
+    //    Failure  string             `json:"failure,omitempty"`
+    //    Accounts []accounts.Account `json:"accounts,omitempty"`
+    string url = 1;
+    string status = 2;
+    string failure = 3;
+    repeated Account accounts = 4;
+}
+message Account {
+    //Address common.Address `json:"address"` // Aurora account address derived from the key
+    //URL     URL            `json:"url"`     // Optional resource locator within a backend
+    bytes address = 1;
+    Url url = 2;
+}
+message Url {
+    //Scheme string // Protocol scheme to identify a capable account backend
+    //Path   string // Path for the backend to identify a unique entity
+    string scheme = 1;
+    string path = 2;
+}
+message OpenWalletRequest {
+    string url = 1;
+    string passphrase = 2;
+}
+message OpenWalletReply {
+}
+message DeriveAccountRequest {
+    //    url string, path string, pin *bool
+    string url = 1;
+    string path = 2;
+    bool pin = 3;
+}
+message NewAccountRequest {
+    string password = 1;
+}
+message NewAccountReply {
+    bytes address = 1;
+}
+message ImportRawKeyRequest {
+    string privateKey = 1;
+    string password = 2;
+}
+message ImportRawKeyReply {
+    bytes address = 1;
+}
+message LockAccountRequest {
+    bytes address = 1;
+    string password = 2;
+    fixed64 duration = 3;
+}
+message LockAccountReply {
+    bool success = 1;
+}
+message ActivateDelegateRequest {
+    bytes address = 1;
+    string password = 2;
+}
+message ActivateDelegateReply {
+    bool success = 1;
+}
+message SignRequest {
+    bytes data = 1;
+    bytes address = 2;
+    string password = 3;
+}
+message SignReply {
+    bytes signature = 1;
+}
+message EcRecoverRequest {
+    bytes data = 1;
+    bytes sign = 2;
+}
+message EcRecoverReply {
+    bytes address = 1;
+}
+// SendTxArgs represents the arguments to sumbit a new transaction into the transaction pool.
+message SendTxRequest {
+    utils.SendTx tx = 1;
+    string password = 2;
+}
+message SendTxReply {
+    bytes hash = 1;
+}
+message SignTransactionRequest {
+    utils.SendTx tx = 1;
+    string password = 2;
+}
+// SignTransactionResult represents a RLP encoded signed transaction.
+message SignTransactionReply {
+    bytes raw = 1;
+    //signed is json bytes
+    bytes signed = 2;
+}
+message NonceRequest {
+    bytes address = 1;
+}
+message NonceReply {
+    fixed64 nonce = 1;
+}
