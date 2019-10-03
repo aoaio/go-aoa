@@ -1,0 +1,182 @@
+syntax = "proto3";
+import "utils/common.proto";
+package transactionpool;
+service TransactionPool {
+    rpc getBlockTransactionCountByNumber (BlockTransactionCountRequest) returns (BlockTransactionCountReply) {
+    }
+    rpc getBlockTransactionCountByHash (BlockTransactionCountRequest) returns (BlockTransactionCountReply) {
+    }
+    rpc getTransactionByBlockNumberAndIndex (utils.TransactionRequest) returns (utils.RpcTransaction) {
+    }
+    rpc getTransactionByBlockHashAndIndex (utils.TransactionRequest) returns (utils.RpcTransaction) {
+    }
+    rpc getRawTransactionByBlockNumberAndIndex (RawTransactionRequest) returns (RawTransactionReply) {
+    }
+    rpc getRawTransactionByBlockHashAndIndex (RawTransactionRequest) returns (RawTransactionReply) {
+    }
+    rpc getTransactionCount (TransactionCountRequest) returns (TransactionCountReply) {
+    }
+    rpc getTransactionCountIncludePending (TransactionCountRequest) returns (TransactionCountReply) {
+    }
+    rpc getTransactionByHash (utils.TransactionRequest) returns (utils.RpcTransaction) {
+    }
+    rpc getRawTransactionByHash (RawTransactionRequest) returns (RawTransactionReply) {
+    }
+    rpc getTransactionReceipt (TransactionReceiptRequest) returns (TransactionReceiptReply) {
+    }
+    rpc sendRawTransaction (SendRawTransactionRequest) returns (SendRawTransactionReply) {
+    }
+    rpc SendTransaction (utils.SendTx) returns (utils.TxReply) {
+    }
+    rpc sign (SignRequest) returns (SignReply) {
+    }
+    rpc signTransaction (utils.SendTx) returns (SignTransactionReply) {
+    }
+    rpc pendingTransactions (PendingTransactionsRequest) returns (PendingTransactionsReply) {
+    }
+    rpc resend (ResendRequest) returns (ResendReply) {
+    }
+}
+message BlockTransactionCountRequest {
+    int64 blockNumber = 1;
+    bytes hash = 2;
+}
+message BlockTransactionCountReply {
+    fixed32 result = 1;
+}
+message TransactionCountRequest {
+    bytes address = 1;
+    int64 blockNumber = 2;
+}
+message TransactionCountReply {
+    fixed64 count = 1;
+}
+message RawTransactionRequest {
+    bytes hash = 1;
+    int64 blockNumber = 2;
+    fixed64 index = 3;
+}
+message RawTransactionReply {
+    bytes result = 1;
+}
+message TransactionReceiptRequest {
+    bytes hash = 1;
+}
+message TransactionReceiptReply {
+    //"action":            receipt.Action,
+    //		"blockHash":         blockHash,
+    //		"blockNumber":       hexutil.Uint64(blockNumber),
+    //		"transactionHash":   hash,
+    //		"transactionIndex":  hexutil.Uint64(index),
+    //		"from":              from,
+    //		"to":                tx.To(),
+    //		"gasUsed":           hexutil.Uint64(receipt.GasUsed),
+    //		"cumulativeGasUsed": hexutil.Uint64(receipt.CumulativeGasUsed),
+    //		"contractAddress":   nil,
+    //		"logs":              receipt.Logs,
+    //		"logsBloom":         receipt.Bloom,
+    fixed64 action = 1;
+    bytes blockHash = 2;
+    fixed64 blockNumber = 3;
+    bytes transactionHash = 4;
+    fixed64 transactionIndex = 5;
+    bytes from = 6;
+    bytes to = 7;
+    fixed64 gasUsed = 8;
+    fixed64 cumulativeGasUsed = 9;
+    bytes contractAddress = 10;
+    repeated Log logs = 11;
+    bytes logsBloom = 12;
+    bytes root = 13;
+    fixed32 status = 14;
+    repeated InnerTxs innerTxs = 15;
+}
+message Log {
+    //// Consensus fields:
+    //// address of the contract that generated the event
+    //Address common.Address `json:"address" gencodec:"required"`
+    //// list of topics provided by the contract.
+    //Topics []common.Hash `json:"topics" gencodec:"required"`
+    //// supplied by the contract, usually ABI-encoded
+    //Data []byte `json:"data" gencodec:"required"`
+    //
+    //// Derived fields. These fields are filled in by the node
+    //// but not secured by consensus.
+    //// block in which the transaction was included
+    //BlockNumber uint64 `json:"blockNumber"`
+    //// hash of the transaction
+    //TxHash common.Hash `json:"transactionHash" gencodec:"required"`
+    //// index of the transaction in the block
+    //TxIndex uint `json:"transactionIndex" gencodec:"required"`
+    //// hash of the block in which the transaction was included
+    //BlockHash common.Hash `json:"blockHash"`
+    //// index of the log in the receipt
+    //Index uint `json:"logIndex" gencodec:"required"`
+    //
+    //// The Removed field is true if this log was reverted due to a chain reorganisation.
+    //// You must pay attention to this field if you receive logs through a filter query.
+    //Removed bool `json:"removed"`
+    bytes address = 1;
+    repeated bytes topics = 2;
+    bytes data = 3;
+    fixed64 blockNumber = 4;
+    bytes txHash = 5;
+    fixed32 txIndex = 6;
+    bytes blockHash = 7;
+    fixed32 index = 8;
+    bool removed = 9;
+}
+message InnerTxs {
+    //    From    common.Address  `json:"from" gencodec:"required"`
+    //    To      common.Address  `json:"to" gencodec:"to" gencodec:"required"`
+    //    AssetID *common.Address `json:"assetid" rlp:"nil"`
+    //    Value   *big.Int        `json:"value" gencodec:"required"`
+    bytes from = 1;
+    bytes to = 2;
+    bytes assetId = 3;
+    bytes value = 4;
+}
+message SendRawTransactionRequest {
+    bytes encodedTx = 1;
+}
+message SendRawTransactionReply {
+    bytes hash = 1;
+}
+message SendTransactionRequest {
+    utils.SendTx tx = 1;
+}
+message SendTransactionReply {
+    bytes hash = 1;
+}
+message SignRequest {
+    bytes address = 1;
+    bytes data = 2;
+}
+message SignReply {
+    bytes signature = 1;
+}
+message SignTransactionRequest {
+    fixed64 nonce = 1;
+    string from = 2;
+    bytes gasPrice = 3;
+    fixed64 gas = 4;
+    utils.SendTx tx = 5;
+}
+message SignTransactionReply {
+    bytes data = 1;
+    bytes txData = 2;
+    //    utils.Transaction tx = 2;
+}
+message PendingTransactionsRequest {
+}
+message PendingTransactionsReply {
+    repeated utils.RpcTransaction transactions = 1;
+}
+message ResendRequest {
+    bytes gasPrice = 1;
+    fixed64 gasLimit = 2;
+    utils.SendTx tx = 3;
+}
+message ResendReply {
+    bytes hash = 1;
+}
